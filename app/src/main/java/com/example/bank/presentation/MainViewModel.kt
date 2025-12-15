@@ -28,7 +28,7 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
     private val _levelUpEvent = MutableStateFlow<Int?>(null)
     val levelUpEvent = _levelUpEvent.asStateFlow()
 
-    // СПИСОК СКИДОК
+    // --- СПИСОК СКИДОК ---
     val discounts = listOf(
         Discount(1, "Вкусно и точка", "Кэшбэк 5% на бургеры", 2, 0xFFFFCC80, TransactionCategory.FOOD, 2000.0),
         Discount(2, "Читай-город", "Скидка 10% на книги", 3, 0xFF90CAF9, TransactionCategory.EDUCATION, 4000.0),
@@ -37,18 +37,27 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         Discount(5, "Premium Banking", "Бесплатное обслуживание", 10, 0xFFB39DDB, TransactionCategory.EDUCATION, 8000.0)
     )
 
-    // --- ИНВЕСТИЦИИ (ИСПРАВЛЕНО) ---
+    // --- ЛОГИКА КАРЬЕРЫ ---
+    data class JobTier(val title: String, val salary: Double, val minIntellect: Int)
 
-    // 1. Пополнить вклад (FIX: Атомарная проверка)
+    fun getCurrentJob(): JobTier {
+        val intellect = _state.value.intellect
+        return when {
+            intellect >= 100 -> JobTier("Гендиректор 👑", 200000.0, 100)
+            intellect >= 80 -> JobTier("Топ-менеджер 💼", 80000.0, 80)
+            intellect >= 50 -> JobTier("Тимлид 👨‍💻", 40000.0, 50)
+            intellect >= 20 -> JobTier("Младший спец ☕", 15000.0, 20)
+            else -> JobTier("Стажер 🧹", 5000.0, 0)
+        }
+    }
+
+    // --- ИНВЕСТИЦИИ ---
     fun investMoney(amount: Double) {
         _state.update { currentState ->
-            // Проверяем баланс ВНУТРИ обновления, чтобы избежать бага с быстрым нажатием
             if (currentState.balance < amount) {
-                _errorEvent.value = "Недостаточно наличных!" // Сообщаем об ошибке
-                return@update currentState // Возвращаем старое состояние (ничего не меняем)
+                _errorEvent.value = "Недостаточно наличных!"
+                return@update currentState
             }
-
-            // Если денег хватает - меняем
             val newState = currentState.copy(
                 balance = currentState.balance - amount,
                 depositBalance = currentState.depositBalance + amount
@@ -58,14 +67,12 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
-    // 2. Снять с вклада (FIX: Атомарная проверка)
     fun withdrawMoney(amount: Double) {
         _state.update { currentState ->
             if (currentState.depositBalance < amount) {
                 _errorEvent.value = "На вкладе нет такой суммы!"
                 return@update currentState
             }
-
             val newState = currentState.copy(
                 balance = currentState.balance + amount,
                 depositBalance = currentState.depositBalance - amount
@@ -75,7 +82,6 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
-    // 3. Расчет ставки
     fun getCurrentInterestRate(): Double {
         val score = _state.value.creditScore
         val baseRate = 1.0
@@ -83,10 +89,8 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         return baseRate + bonus
     }
 
-    // --- ОСНОВНАЯ ЛОГИКА ---
-
+    // --- ТРАНЗАКЦИИ ---
     fun onTransaction(category: TransactionCategory, amount: Double, description: String) {
-        // Здесь тоже лучше перенести проверку внутрь update для надежности
         _state.update { currentState ->
             if (currentState.balance < amount) {
                 _errorEvent.value = "Недостаточно средств!"
@@ -101,6 +105,7 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
             var newState = EvolutionEngine.calculateNewState(currentState, category, amount)
             newState = newState.copy(balance = currentState.balance - amount)
 
+            // Обновление специфических статов
             newState = when(category) {
                 TransactionCategory.SPORT -> newState.copy(
                     spentOnSport = newState.spentOnSport + amount,
@@ -130,79 +135,69 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
 
             newState = checkHouseUpgrade(newState)
             storage.saveState(newState)
-            // Добавляем запись в историю здесь нельзя (side effect), поэтому history обновляем отдельно
-            // Но для простоты в рамках этого урока оставим обновление истории снаружи
+            // Обновляем историю "снаружи" нельзя, но для учебного проекта допустим side-effect внутри
+            // или обновляем историю ниже, если стейт изменился.
             newState
         }
-        // ВАЖНО: История обновляется только если баланс реально изменился, но здесь для простоты оставляем так.
-        // Если была ошибка, баланс не поменялся, запись в истории будет лишней, но это не критичный баг для курсовой.
-        // Чтобы сделать идеально, нужно проверять результат update, но это усложнит код.
         if (_errorEvent.value == null) {
             _history.update { list -> listOf("$description (-${amount.toInt()}₽)") + list }
         }
     }
 
+    // --- ЗАРПЛАТА (КАРЬЕРА) ---
     fun onSalary() {
-        _state.update { currentState ->
-            if (currentState.energy < 30) {
-                _errorEvent.value = "Вы валитесь с ног! Поспите."
-                return@update currentState
-            }
+        if (_state.value.energy < 30) {
+            _errorEvent.value = "Вы валитесь с ног! Поспите."
+            return
+        }
 
-            var newState = currentState.copy(
-                balance = currentState.balance + 15000.0,
-                energy = (currentState.energy - 30).coerceAtLeast(0),
-                creditScore = (currentState.creditScore + 10).coerceAtMost(850)
+        val job = getCurrentJob()
+
+        _state.update {
+            var newState = it.copy(
+                balance = it.balance + job.salary,
+                energy = (it.energy - 30).coerceAtLeast(0),
+                creditScore = (it.creditScore + 5).coerceAtMost(850)
             )
             newState = checkHouseUpgrade(newState)
             storage.saveState(newState)
-
-            // Хитрость: обновляем историю только если успех
-            _history.update { list -> listOf("💰 ЗАРПЛАТА (+15000₽)") + list }
             newState
         }
+        _history.update { list -> listOf("💰 ЗП (${job.title}): +${job.salary.toInt()}₽") + list }
     }
 
-    // --- СОН (ТЕПЕРЬ С ДЕГРАДАЦИЕЙ СТАТОВ) ---
+    // --- СОН (ВОССТАНОВЛЕНИЕ + УБЫВАНИЕ СТАТОВ + ПРОЦЕНТЫ) ---
     fun onSleep() {
         val rate = getCurrentInterestRate()
-        val deposit = _state.value.depositBalance
-
-        // Сложный процент
-        val profit = deposit * (rate / 100.0)
 
         _state.update { currentState ->
-            // ЛОГИКА ДЕГРАДАЦИИ:
-            // За ночь мышцы атрофируются (-5), знания забываются (-3)
-            // Но не ниже нуля
+            // 1. Проценты
+            val deposit = currentState.depositBalance
+            val profit = deposit * (rate / 100.0)
+
+            // 2. Деградация статов (мышцы атрофируются, знания забываются)
             val newStrength = (currentState.strength - 5).coerceAtLeast(0)
             val newIntellect = (currentState.intellect - 3).coerceAtLeast(0)
 
-            // Если голоден (не ел), настроение падает утром
-            val moodPenalty = if (currentState.spentOnFood < 500) 10 else 0
-
-            // Сбрасываем счетчики дневных трат (новый день - новые траты)
-            // (Опционально, но логично. Если хочешь копить общую статистику для скидок - не сбрасывай.
-            //  В нашем случае для скидок лучше НЕ сбрасывать, поэтому оставим spentOn... как есть).
-
+            // 3. Восстановление энергии
             val newState = currentState.copy(
-                energy = 100, // Полный отдых
-                mood = (currentState.mood + 10 - moodPenalty).coerceIn(0, 100),
+                energy = 100,
+                mood = (currentState.mood + 10).coerceAtMost(100),
                 depositBalance = currentState.depositBalance + profit,
-                strength = newStrength,   // <-- Уменьшили силу
-                intellect = newIntellect  // <-- Уменьшили ум
+                strength = newStrength,
+                intellect = newIntellect
             )
-
             storage.saveState(newState)
 
-            val msg = if (profit > 0) "🛏️ Новый день! +${profit.toInt()}₽ (Вклад). Характеристики чуть упали."
-            else "🛏️ Новый день! Сила и Ум немного снизились."
+            val msg = if (profit > 0) "🛏️ Сон: +${profit.toInt()}₽ (Вклад). Статы снизились."
+            else "🛏️ Вы выспались! Сила и Ум немного упали."
             _history.update { listOf(msg) + it }
 
             newState
         }
     }
 
+    // --- РАНДОМ ---
     fun triggerRandomEvent() {
         val randomValue = Random.nextInt(0, 100)
         var msg = ""
