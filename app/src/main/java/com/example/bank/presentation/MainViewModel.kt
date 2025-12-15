@@ -163,21 +163,40 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
+    // --- СОН (ТЕПЕРЬ С ДЕГРАДАЦИЕЙ СТАТОВ) ---
     fun onSleep() {
         val rate = getCurrentInterestRate()
+        val deposit = _state.value.depositBalance
+
+        // Сложный процент
+        val profit = deposit * (rate / 100.0)
 
         _state.update { currentState ->
-            val deposit = currentState.depositBalance
-            val profit = deposit * (rate / 100.0)
+            // ЛОГИКА ДЕГРАДАЦИИ:
+            // За ночь мышцы атрофируются (-5), знания забываются (-3)
+            // Но не ниже нуля
+            val newStrength = (currentState.strength - 5).coerceAtLeast(0)
+            val newIntellect = (currentState.intellect - 3).coerceAtLeast(0)
+
+            // Если голоден (не ел), настроение падает утром
+            val moodPenalty = if (currentState.spentOnFood < 500) 10 else 0
+
+            // Сбрасываем счетчики дневных трат (новый день - новые траты)
+            // (Опционально, но логично. Если хочешь копить общую статистику для скидок - не сбрасывай.
+            //  В нашем случае для скидок лучше НЕ сбрасывать, поэтому оставим spentOn... как есть).
 
             val newState = currentState.copy(
-                energy = 100,
-                mood = (currentState.mood + 10).coerceAtMost(100),
-                depositBalance = currentState.depositBalance + profit
+                energy = 100, // Полный отдых
+                mood = (currentState.mood + 10 - moodPenalty).coerceIn(0, 100),
+                depositBalance = currentState.depositBalance + profit,
+                strength = newStrength,   // <-- Уменьшили силу
+                intellect = newIntellect  // <-- Уменьшили ум
             )
+
             storage.saveState(newState)
 
-            val msg = if (profit > 0) "🛏️ Сон: +${profit.toInt()}₽ (Вклад)" else "🛏️ Вы выспались!"
+            val msg = if (profit > 0) "🛏️ Новый день! +${profit.toInt()}₽ (Вклад). Характеристики чуть упали."
+            else "🛏️ Новый день! Сила и Ум немного снизились."
             _history.update { listOf(msg) + it }
 
             newState
