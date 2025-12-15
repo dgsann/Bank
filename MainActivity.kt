@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -48,6 +49,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+// --- ГЛАВНЫЙ ЭКРАН (НАВИГАЦИЯ) ---
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -60,6 +62,7 @@ fun MainScreen(viewModel: MainViewModel) {
             }
         }
     ) { innerPadding ->
+        // Фон здесь задается базовый, но в TamagotchiScreen он переопределяется динамическим
         Box(modifier = Modifier.padding(innerPadding).fillMaxSize().background(Color(0xFFF2F4F8))) {
             when (selectedTab) {
                 0 -> TamagotchiScreen(viewModel)
@@ -70,6 +73,7 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 }
 
+// --- ЭКРАН 1: ТАМАГОЧИ ---
 @Composable
 fun TamagotchiScreen(viewModel: MainViewModel) {
     val avatarState by viewModel.state.collectAsState()
@@ -79,20 +83,40 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     val currentJob = viewModel.getCurrentJob()
 
+    // АДАПТИВНЫЙ ФОН
+    val targetColor = when {
+        avatarState.mood < 30 -> Color(0xFFCFD8DC) // Холодный серый (Грусть)
+        avatarState.mood > 80 -> Color(0xFFFFF8E1) // Теплый солнечный (Счастье)
+        else -> Color(0xFFF2F4F8) // Стандартный
+    }
+
+    val backgroundColor by animateColorAsState(
+        targetValue = targetColor,
+        animationSpec = tween(1000),
+        label = "BgColorAnim"
+    )
+
     LaunchedEffect(errorMsg) { errorMsg?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); viewModel.clearError() } }
     if (newLevel != null) { LevelUpDialog(level = newLevel!!, onDismiss = { viewModel.dismissLevelUpDialog() }) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    // Применяем динамический фон
+    Box(modifier = Modifier.fillMaxSize().background(backgroundColor)) {
         Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+
+            // Баланс
             Text("Ваш баланс", color = Color.Gray, fontSize = 14.sp)
             Text("${avatarState.balance.toInt()} ₽", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Карточка Дома
             HouseCard(avatarState.houseLevel, avatarState.balance, viewModel.getNextHouseTarget())
             Spacer(modifier = Modifier.height(8.dp))
 
+            // Карточка Аватара
             Card(elevation = CardDefaults.cardElevation(8.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().weight(1f)) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+
+                    // Верхняя строка: Уровень и Должность
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
                             Text("Lvl ${avatarState.level}", fontWeight = FontWeight.Bold)
@@ -101,9 +125,11 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
                         TextButton(onClick = { viewModel.resetProgress() }) { Text("Сброс", color = Color.Red, fontSize = 12.sp) }
                     }
 
+                    // Умные эмодзи
                     val emoji = getAvatarEmoji(avatarState)
                     Text(emoji, fontSize = 60.sp, modifier = Modifier.padding(vertical = 4.dp))
 
+                    // 5 Шкал характеристик
                     StatBar("⚡ Энергия", avatarState.energy, Color(0xFFFFC107), 100)
                     Spacer(modifier = Modifier.height(2.dp))
                     StatBar("📈 Рейтинг", avatarState.creditScore, Color(0xFF9C27B0), 850)
@@ -118,12 +144,15 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Кнопки трат
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 ActionButton("📚 Книги\n-2k", Color(0xFFE3F2FD)) { viewModel.onTransaction(TransactionCategory.EDUCATION, 2000.0, "Книги") }
                 ActionButton("🏋️ Спорт\n-3k", Color(0xFFFFEBEE)) { viewModel.onTransaction(TransactionCategory.SPORT, 3000.0, "Спортзал") }
                 ActionButton("🍔 Еда\n-500", Color(0xFFE8F5E9)) { viewModel.onTransaction(TransactionCategory.FOOD, 500.0, "Еда") }
             }
             Spacer(modifier = Modifier.height(8.dp))
+
+            // Кнопки действий (Сон и Зарплата)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Button(onClick = { viewModel.onSleep() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(50.dp)) { Text("🛏️ Сон", fontSize = 14.sp) }
                 Spacer(modifier = Modifier.width(8.dp))
@@ -131,7 +160,10 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("Работа", fontSize = 12.sp); Text("+${currentJob.salary.toInt()} ₽", fontSize = 10.sp, color = Color.Gray) }
                 }
             }
+
             Spacer(modifier = Modifier.height(10.dp))
+
+            // История
             Text("История:", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
             LazyColumn(modifier = Modifier.fillMaxWidth().height(80.dp)) {
                 items(history) { transaction ->
@@ -140,11 +172,13 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
                 }
             }
         }
+
+        // Кнопка случайного события
         FloatingActionButton(onClick = { viewModel.triggerRandomEvent() }, containerColor = Color(0xFFFFD700), modifier = Modifier.align(Alignment.BottomEnd).padding(24.dp)) { Text("🎲", fontSize = 24.sp) }
     }
 }
 
-// --- Вкладка Маркета (Скидки + Магазин) ---
+// --- ЭКРАН 2: МАРКЕТ (Скидки + Магазин) ---
 @Composable
 fun MarketScreen(viewModel: MainViewModel) {
     var selectedSection by remember { mutableStateOf(0) }
@@ -157,7 +191,6 @@ fun MarketScreen(viewModel: MainViewModel) {
             containerColor = Color.Transparent,
             contentColor = Color.Black,
             indicator = { tabPositions ->
-                // ИСПРАВЛЕНИЕ: TabRowDefaults.SecondaryIndicator
                 TabRowDefaults.SecondaryIndicator(
                     Modifier.tabIndicatorOffset(tabPositions[selectedSection]),
                     color = Color.Black
@@ -207,7 +240,7 @@ fun ShopItemCard(item: ShopItem, isOwned: Boolean, onBuy: () -> Unit) {
     }
 }
 
-// --- Вкладка Финансов (Инвестиции + Кредит) ---
+// --- ЭКРАН 3: ФИНАНСЫ (Вклад + Кредит) ---
 @Composable
 fun InvestmentsScreen(viewModel: MainViewModel) {
     val state by viewModel.state.collectAsState()
@@ -217,6 +250,7 @@ fun InvestmentsScreen(viewModel: MainViewModel) {
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Финансы 🏦", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
 
+        // Карточка Вклада
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text("💰 Ваш Вклад", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
@@ -231,6 +265,7 @@ fun InvestmentsScreen(viewModel: MainViewModel) {
         }
         Spacer(modifier = Modifier.height(16.dp))
 
+        // Карточка Кредита
         Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -247,22 +282,24 @@ fun InvestmentsScreen(viewModel: MainViewModel) {
             }
         }
         Spacer(modifier = Modifier.weight(1f))
+
         if (state.loanBalance > 0) Text("Внимание: Долг растет на 5% в день!", fontSize = 12.sp, color = Color.Red)
         else Text("Совет: Избегайте кредитов.", fontSize = 12.sp, color = Color.Gray)
     }
 }
 
-// --- ВСПОМОГАТЕЛЬНЫЕ ---
+// --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И КОМПОНЕНТЫ UI ---
+
 fun getAvatarEmoji(state: AvatarState): String {
     return when {
-        state.energy < 10 -> "😵"
-        state.mood < 15 -> "😭"
-        state.energy < 30 -> "😴"
-        state.strength > 80 && state.intellect > 80 -> "😎"
-        state.balance > 100000 && state.mood > 80 -> "🤑"
-        state.strength > 80 -> "🦍"
-        state.intellect > 80 -> "👽"
-        state.hasGlasses -> "🤓"
+        state.energy < 10 -> "😵" // Обморок
+        state.mood < 15 -> "😭"   // Депрессия
+        state.energy < 30 -> "😴" // Сонный
+        state.strength > 80 && state.intellect > 80 -> "😎" // Терминатор
+        state.balance > 100000 && state.mood > 80 -> "🤑"   // Олигарх
+        state.strength > 80 -> "🦍" // Качок
+        state.intellect > 80 -> "👽" // Мозг
+        state.hasGlasses -> "🤓"    // Умник
         state.mood > 80 -> "🤩"
         state.mood < 40 -> "😒"
         else -> "🙂"
