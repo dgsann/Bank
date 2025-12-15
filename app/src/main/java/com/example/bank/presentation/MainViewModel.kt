@@ -28,22 +28,67 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
     private val _levelUpEvent = MutableStateFlow<Int?>(null)
     val levelUpEvent = _levelUpEvent.asStateFlow()
 
+    // СПИСОК СКИДОК
     val discounts = listOf(
-        Discount(1, "Вкусно и точка", "Кэшбэк 5%", 2, 0xFFFFCC80, TransactionCategory.FOOD, 2000.0),
-        Discount(2, "Читай-город", "Скидка 10%", 3, 0xFF90CAF9, TransactionCategory.EDUCATION, 4000.0),
-        Discount(3, "Спортмастер", "Скидка 20%", 5, 0xFFEF9A9A, TransactionCategory.SPORT, 6000.0),
-        Discount(4, "Пятерочка", "Кэшбэк 3%", 7, 0xFFA5D6A7, TransactionCategory.FOOD, 5000.0),
+        Discount(1, "Вкусно и точка", "Кэшбэк 5% на бургеры", 2, 0xFFFFCC80, TransactionCategory.FOOD, 2000.0),
+        Discount(2, "Читай-город", "Скидка 10% на книги", 3, 0xFF90CAF9, TransactionCategory.EDUCATION, 4000.0),
+        Discount(3, "Спортмастер", "Скидка 20% на абонемент", 5, 0xFFEF9A9A, TransactionCategory.SPORT, 6000.0),
+        Discount(4, "Пятерочка", "Повышенный кэшбэк 3%", 7, 0xFFA5D6A7, TransactionCategory.FOOD, 5000.0),
         Discount(5, "Premium Banking", "Бесплатное обслуживание", 10, 0xFFB39DDB, TransactionCategory.EDUCATION, 8000.0)
     )
 
-    // --- ТРАНЗАКЦИИ ---
+    // --- ИНВЕСТИЦИИ (НОВОЕ) ---
+
+    // 1. Пополнить вклад
+    fun investMoney(amount: Double) {
+        if (_state.value.balance < amount) {
+            _errorEvent.value = "Недостаточно наличных!"
+            return
+        }
+        _state.update {
+            val newState = it.copy(
+                balance = it.balance - amount,
+                depositBalance = it.depositBalance + amount
+            )
+            storage.saveState(newState)
+            newState
+        }
+    }
+
+    // 2. Снять с вклада
+    fun withdrawMoney(amount: Double) {
+        if (_state.value.depositBalance < amount) {
+            _errorEvent.value = "На вкладе нет такой суммы!"
+            return
+        }
+        _state.update {
+            val newState = it.copy(
+                balance = it.balance + amount,
+                depositBalance = it.depositBalance - amount
+            )
+            storage.saveState(newState)
+            newState
+        }
+    }
+
+    // 3. Расчет ставки (Зависит от Рейтинга)
+    fun getCurrentInterestRate(): Double {
+        val score = _state.value.creditScore
+        // База 1% + 0.5% за каждые 100 баллов рейтинга выше 300
+        val baseRate = 1.0
+        val bonus = ((score - 300).coerceAtLeast(0) / 100.0) * 0.5
+        return baseRate + bonus
+    }
+
+    // --- ОСНОВНАЯ ЛОГИКА ---
+
     fun onTransaction(category: TransactionCategory, amount: Double, description: String) {
         if (_state.value.balance < amount) {
             _errorEvent.value = "Недостаточно средств!"
             return
         }
 
-        // СПОРТ ТРАТИТ ЭНЕРГИЮ
+        // Проверка энергии для спорта
         if (category == TransactionCategory.SPORT && _state.value.energy < 20) {
             _errorEvent.value = "Слишком устал для спорта! Нужно поспать."
             return
@@ -54,28 +99,29 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
             var newState = EvolutionEngine.calculateNewState(currentState, category, amount)
             newState = newState.copy(balance = currentState.balance - amount)
 
-            // Логика энергии и рейтинга при тратах
+            // Обновление статов и трат
             newState = when(category) {
                 TransactionCategory.SPORT -> newState.copy(
                     spentOnSport = newState.spentOnSport + amount,
-                    energy = (newState.energy - 20).coerceAtLeast(0) // Усталость
+                    energy = (newState.energy - 20).coerceAtLeast(0)
                 )
                 TransactionCategory.EDUCATION -> newState.copy(
                     spentOnEducation = newState.spentOnEducation + amount,
-                    energy = (newState.energy - 5).coerceAtLeast(0) // Учеба тоже утомляет
+                    energy = (newState.energy - 5).coerceAtLeast(0)
                 )
                 TransactionCategory.FOOD -> newState.copy(
                     spentOnFood = newState.spentOnFood + amount,
-                    energy = (newState.energy + 10).coerceAtMost(100) // Еда дает энергию
+                    energy = (newState.energy + 10).coerceAtMost(100)
                 )
                 else -> newState
             }
 
-            // Если баланс упал слишком низко (< 1000), рейтинг падает
+            // Штраф рейтингу, если денег мало
             if (newState.balance < 1000) {
                 newState = newState.copy(creditScore = (newState.creditScore - 5).coerceAtLeast(0))
             }
 
+            // Level Up
             if (newState.level > oldLevel) {
                 val bonus = 5000.0
                 newState = newState.copy(balance = newState.balance + bonus)
@@ -90,19 +136,16 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         _history.update { list -> listOf("$description (-${amount.toInt()}₽)") + list }
     }
 
-    // --- ЗАРПЛАТА ---
     fun onSalary() {
-        // ПРОВЕРКА ЭНЕРГИИ
         if (_state.value.energy < 30) {
-            _errorEvent.value = "Вы валитесь с ног! Поспите, чтобы работать."
+            _errorEvent.value = "Вы валитесь с ног! Поспите."
             return
         }
-
         _state.update {
             var newState = it.copy(
                 balance = it.balance + 15000.0,
-                energy = (it.energy - 30).coerceAtLeast(0), // Работа отнимает много сил
-                creditScore = (it.creditScore + 10).coerceAtMost(850) // Работа повышает рейтинг
+                energy = (it.energy - 30).coerceAtLeast(0),
+                creditScore = (it.creditScore + 10).coerceAtMost(850)
             )
             newState = checkHouseUpgrade(newState)
             storage.saveState(newState)
@@ -111,20 +154,26 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         _history.update { listOf("💰 ЗАРПЛАТА (+15000₽)") + it }
     }
 
-    // --- НОВОЕ: СОН ---
+    // СОН (Восстановление + Проценты по вкладу)
     fun onSleep() {
+        val rate = getCurrentInterestRate()
+        val deposit = _state.value.depositBalance
+        val profit = deposit * (rate / 100.0) // Простой дневной процент
+
         _state.update {
             val newState = it.copy(
-                energy = 100, // Полностью восстановить
-                mood = (it.mood + 10).coerceAtMost(100)
+                energy = 100,
+                mood = (it.mood + 10).coerceAtMost(100),
+                depositBalance = it.depositBalance + profit
             )
             storage.saveState(newState)
             newState
         }
-        _history.update { listOf("🛏️ Вы отлично выспались!") + it }
+
+        val msg = if (profit > 0) "🛏️ Сон: +${profit.toInt()}₽ (Вклад)" else "🛏️ Вы выспались!"
+        _history.update { listOf(msg) + it }
     }
 
-    // --- РАНДОМ ---
     fun triggerRandomEvent() {
         val randomValue = Random.nextInt(0, 100)
         var msg = ""
@@ -139,17 +188,17 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
                     val lost = 500.0
                     if(newState.balance >= lost) {
                         newState = newState.copy(balance = newState.balance - lost, creditScore = (newState.creditScore - 5).coerceAtLeast(0))
-                        msg = "💸 Потерял 500₽ (Рейтинг упал)"
-                    } else msg = "😅 Почти потерял деньги"
+                        msg = "💸 Потерял 500₽"
+                    } else msg = "😅 Чуть не потерял деньги"
                 }
                 randomValue < 55 -> {
-                    newState = newState.copy(balance = newState.balance + 10000.0, mood = 100, creditScore = (newState.creditScore + 20).coerceAtMost(850))
+                    newState = newState.copy(balance = newState.balance + 10000.0, mood = 100, creditScore = (newState.creditScore+20).coerceAtMost(850))
                     msg = "🎰 ДЖЕКПОТ! +10 000₽"
                     _levelUpEvent.value = newState.level
                 }
                 else -> {
                     newState = newState.copy(energy = (newState.energy - 10).coerceAtLeast(0))
-                    msg = "🥱 Тяжелый день, вы устали"
+                    msg = "🥱 Устал без причины"
                 }
             }
             newState = checkHouseUpgrade(newState)
@@ -162,7 +211,7 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
-    // --- Вспомогательные ---
+    // --- ВСПОМОГАТЕЛЬНЫЕ ---
     private fun checkHouseUpgrade(currentState: AvatarState): AvatarState {
         val balance = currentState.balance
         var newHouseLevel = 1
@@ -188,6 +237,7 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         _state.value = newState
         _history.value = emptyList()
     }
+
     fun getSpendingProgress(d: Discount) = when(d.requiredCategory) {
         TransactionCategory.FOOD -> _state.value.spentOnFood
         TransactionCategory.SPORT -> _state.value.spentOnSport
