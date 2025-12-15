@@ -7,13 +7,12 @@ data class AvatarState(
     val mood: Int = 50,
     val energy: Int = 100,
     val creditScore: Int = 300,
-
     val hasGlasses: Boolean = false,
     val houseLevel: Int = 1,
     val balance: Double = 10000.0,
-
-    // НОВОЕ ПОЛЕ: Деньги на вкладе/инвестициях
     val depositBalance: Double = 0.0,
+
+    val loanBalance: Double = 0.0,
 
     val spentOnFood: Double = 0.0,
     val spentOnSport: Double = 0.0,
