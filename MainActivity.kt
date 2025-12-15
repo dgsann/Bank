@@ -157,7 +157,11 @@ fun MarketScreen(viewModel: MainViewModel) {
             containerColor = Color.Transparent,
             contentColor = Color.Black,
             indicator = { tabPositions ->
-                SecondaryIndicator(Modifier.tabIndicatorOffset(tabPositions[selectedSection]), color = Color.Black)
+                // ИСПРАВЛЕНИЕ: TabRowDefaults.SecondaryIndicator
+                TabRowDefaults.SecondaryIndicator(
+                    Modifier.tabIndicatorOffset(tabPositions[selectedSection]),
+                    color = Color.Black
+                )
             }
         ) {
             Tab(selected = selectedSection == 0, onClick = { selectedSection = 0 }, text = { Text("Скидки") })
