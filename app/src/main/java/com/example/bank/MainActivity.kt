@@ -42,7 +42,7 @@ class MainActivity : ComponentActivity() {
         // 1. Создаем хранилище
         val storage = AvatarStorage(applicationContext)
 
-        // 2. Создаем ViewModel с фабрикой
+        // 2. Создаем ViewModel
         val viewModel: MainViewModel by viewModels { MainViewModel.factory(storage) }
 
         setContent {
@@ -53,7 +53,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// --- ГЛАВНЫЙ ЭКРАН С НАВИГАЦИЕЙ ---
+// --- НАВИГАЦИЯ ---
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
@@ -85,7 +85,7 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 }
 
-// --- ЭКРАН 1: ТАМАГОЧИ (ОСНОВНОЙ) ---
+// --- ЭКРАН 1: ТАМАГОЧИ ---
 @Composable
 fun TamagotchiScreen(viewModel: MainViewModel) {
     val avatarState by viewModel.state.collectAsState()
@@ -94,7 +94,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
     val newLevel by viewModel.levelUpEvent.collectAsState()
     val context = LocalContext.current
 
-    // Обработка ошибок (Toast)
+    // Toast ошибки/сообщения
     LaunchedEffect(errorMsg) {
         errorMsg?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -102,14 +102,16 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
         }
     }
 
-    // Диалог повышения уровня
+    // Диалог уровня
     if (newLevel != null) {
         LevelUpDialog(level = newLevel!!, onDismiss = { viewModel.dismissLevelUpDialog() })
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Баланс
@@ -122,6 +124,15 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
             )
             Spacer(modifier = Modifier.height(16.dp))
 
+            // НОВОЕ: Карточка Дома
+            HouseCard(
+                level = avatarState.houseLevel,
+                currentBalance = avatarState.balance,
+                nextTarget = viewModel.getNextHouseTarget()
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Карточка Аватара
             Card(
                 elevation = CardDefaults.cardElevation(8.dp),
@@ -130,7 +141,6 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    // Заголовок карточки
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Lvl ${avatarState.level}", fontWeight = FontWeight.Bold)
                         TextButton(onClick = { viewModel.resetProgress() }) {
@@ -138,11 +148,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
                         }
                     }
 
-                    if (avatarState.houseLevel > 1) {
-                        Text("🏠 Дом ур.${avatarState.houseLevel}", fontSize = 12.sp, color = Color.Gray)
-                    }
-
-                    // Логика эмодзи
+                    // Эмодзи аватара
                     val emoji = when {
                         avatarState.strength > 80 -> "💪"
                         avatarState.intellect > 80 -> "🧠"
@@ -163,7 +169,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Кнопки Трат
+            // Кнопки
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 ActionButton("📚 Книги\n-2000₽", Color(0xFFE3F2FD)) {
                     viewModel.onTransaction(TransactionCategory.EDUCATION, 2000.0, "Книги")
@@ -178,7 +184,6 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Кнопка Зарплаты
             Button(
                 onClick = { viewModel.onSalary() },
                 colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
@@ -190,7 +195,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Список Истории
+            // История
             Text("История:", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
             LazyColumn(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                 items(history) { transaction ->
@@ -209,7 +214,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
             }
         }
 
-        // КНОПКА "СЛУЧАЙНОЕ СОБЫТИЕ" (Floating Action Button)
+        // Кнопка Рандома
         FloatingActionButton(
             onClick = { viewModel.triggerRandomEvent() },
             containerColor = Color(0xFFFFD700),
@@ -222,7 +227,7 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
     }
 }
 
-// --- ЭКРАН 2: СКИДКИ (БОНУСЫ) ---
+// --- ЭКРАН 2: СКИДКИ ---
 @Composable
 fun DiscountsScreen(viewModel: MainViewModel) {
     val avatarState by viewModel.state.collectAsState()
@@ -239,7 +244,6 @@ fun DiscountsScreen(viewModel: MainViewModel) {
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             items(viewModel.discounts) { discount ->
-                // Получаем прогресс из ViewModel
                 val spending = viewModel.getSpendingProgress(discount)
                 val unlocked = viewModel.isDiscountUnlocked(discount)
 
@@ -253,15 +257,65 @@ fun DiscountsScreen(viewModel: MainViewModel) {
     }
 }
 
-// --- КАРТОЧКА СКИДКИ С ПРОГРЕСС-БАРОМ ---
+// --- НОВЫЙ КОМПОНЕНТ: КАРТОЧКА ДОМА ---
+@Composable
+fun HouseCard(level: Int, currentBalance: Double, nextTarget: Double) {
+    val (houseEmoji, houseTitle) = when(level) {
+        1 -> "⛺" to "Туристическая палатка"
+        2 -> "🏠" to "Деревянный домик"
+        3 -> "🏡" to "Уютный коттедж"
+        4 -> "🏰" to "Личный замок"
+        else -> "⛺" to "Палатка"
+    }
+
+    Card(
+        elevation = CardDefaults.cardElevation(4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF3E0)), // Оранжевый оттенок
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = houseEmoji, fontSize = 40.sp)
+                Spacer(modifier = Modifier.width(16.dp))
+                Column {
+                    Text("Ваше жилище", fontSize = 12.sp, color = Color.Gray)
+                    Text(houseTitle, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (nextTarget > 0) {
+                val progress = (currentBalance / nextTarget).coerceIn(0.0, 1.0).toFloat()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Следующее улучшение:", fontSize = 12.sp, color = Color.Gray)
+                    Text("${nextTarget.toInt()} ₽", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                    color = Color(0xFFFF9800),
+                    trackColor = Color.White
+                )
+            } else {
+                Text("👑 Максимальный уровень жилья!", fontSize = 12.sp, color = Color(0xFFE65100), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
 @Composable
 fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) {
     val cardColor = if (isUnlocked) Color(discount.color) else Color.White
     val contentColor = Color.Black
-    // Рамка, если карта закрыта
     val borderStroke = if (isUnlocked) null else BorderStroke(1.dp, Color.LightGray)
-
-    // Расчет прогресса (от 0.0 до 1.0)
     val progress = (currentSpent / discount.requiredAmount).coerceIn(0.0, 1.0).toFloat()
 
     Card(
@@ -271,18 +325,11 @@ fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) 
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Текст
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(text = discount.title, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = contentColor)
                     Text(text = discount.description, fontSize = 14.sp, color = Color.Gray)
                 }
-
-                // Иконка замка или корзины
                 Icon(
                     imageVector = if (isUnlocked) Icons.Default.ShoppingCart else Icons.Default.Lock,
                     contentDescription = null,
@@ -293,7 +340,6 @@ fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) 
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Отображение прогресса
             if (!isUnlocked) {
                 val categoryName = when(discount.requiredCategory) {
                     TransactionCategory.FOOD -> "Еда"
@@ -301,15 +347,8 @@ fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) 
                     TransactionCategory.EDUCATION -> "Книги"
                     else -> "Траты"
                 }
-
-                Text(
-                    text = "$categoryName: ${currentSpent.toInt()} / ${discount.requiredAmount.toInt()} ₽",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.Gray
-                )
+                Text("$categoryName: ${currentSpent.toInt()} / ${discount.requiredAmount.toInt()} ₽", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                 Spacer(modifier = Modifier.height(4.dp))
-
                 LinearProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
@@ -322,8 +361,6 @@ fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) 
         }
     }
 }
-
-// --- ВСПОМОГАТЕЛЬНЫЕ КОМПОНЕНТЫ ---
 
 @Composable
 fun LevelUpDialog(level: Int, onDismiss: () -> Unit) {
@@ -355,11 +392,7 @@ fun ActionButton(text: String, color: Color, onClick: () -> Unit) {
 
 @Composable
 fun StatBar(label: String, value: Int, color: Color) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = value / 100f,
-        animationSpec = tween(durationMillis = 800),
-        label = ""
-    )
+    val animatedProgress by animateFloatAsState(targetValue = value / 100f, animationSpec = tween(durationMillis = 800), label = "")
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(text = label, fontSize = 12.sp, modifier = Modifier.width(70.dp))
         LinearProgressIndicator(
