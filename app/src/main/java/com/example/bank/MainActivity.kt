@@ -42,25 +42,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val storage = AvatarStorage(applicationContext)
         val viewModel: MainViewModel by viewModels { MainViewModel.factory(storage) }
-        setContent {
-            BankTheme {
-                MainScreen(viewModel)
-            }
-        }
+        setContent { BankTheme { MainScreen(viewModel) } }
     }
 }
 
-// --- ГЛАВНЫЙ ЭКРАН (3 ВКЛАДКИ) ---
 @Composable
 fun MainScreen(viewModel: MainViewModel) {
     var selectedTab by remember { mutableStateOf(0) }
-
     Scaffold(
         bottomBar = {
             NavigationBar(containerColor = Color.White) {
                 NavigationBarItem(icon = { Icon(Icons.Default.Home, null) }, label = { Text("Главная") }, selected = selectedTab == 0, onClick = { selectedTab = 0 })
                 NavigationBarItem(icon = { Icon(Icons.Default.Star, null) }, label = { Text("Бонусы") }, selected = selectedTab == 1, onClick = { selectedTab = 1 })
-                NavigationBarItem(icon = { Icon(Icons.Default.DateRange, null) }, label = { Text("Вклад") }, selected = selectedTab == 2, onClick = { selectedTab = 2 })
+                NavigationBarItem(icon = { Icon(Icons.Default.DateRange, null) }, label = { Text("Финансы") }, selected = selectedTab == 2, onClick = { selectedTab = 2 })
             }
         }
     ) { innerPadding ->
@@ -74,7 +68,6 @@ fun MainScreen(viewModel: MainViewModel) {
     }
 }
 
-// --- ЭКРАН 1: ТАМАГОЧИ ---
 @Composable
 fun TamagotchiScreen(viewModel: MainViewModel) {
     val avatarState by viewModel.state.collectAsState()
@@ -82,54 +75,33 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
     val errorMsg by viewModel.errorEvent.collectAsState()
     val newLevel by viewModel.levelUpEvent.collectAsState()
     val context = LocalContext.current
-
-    // Данные для UI
     val currentJob = viewModel.getCurrentJob()
 
-    LaunchedEffect(errorMsg) {
-        errorMsg?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); viewModel.clearError() }
-    }
+    LaunchedEffect(errorMsg) { errorMsg?.let { Toast.makeText(context, it, Toast.LENGTH_SHORT).show(); viewModel.clearError() } }
     if (newLevel != null) { LevelUpDialog(level = newLevel!!, onDismiss = { viewModel.dismissLevelUpDialog() }) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier.fillMaxSize().padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            // Баланс
+        Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
             Text("Ваш баланс", color = Color.Gray, fontSize = 14.sp)
             Text("${avatarState.balance.toInt()} ₽", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Дом
             HouseCard(avatarState.houseLevel, avatarState.balance, viewModel.getNextHouseTarget())
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Карточка Аватара
-            Card(
-                elevation = CardDefaults.cardElevation(8.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier.fillMaxWidth().weight(1f)
-            ) {
+            Card(elevation = CardDefaults.cardElevation(8.dp), shape = RoundedCornerShape(24.dp), colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().weight(1f)) {
                 Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-
-                    // Уровень и Должность
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
                             Text("Lvl ${avatarState.level}", fontWeight = FontWeight.Bold)
                             Text(currentJob.title, fontSize = 12.sp, color = Color(0xFF1565C0), fontWeight = FontWeight.Bold)
                         }
-                        TextButton(onClick = { viewModel.resetProgress() }) {
-                            Text("Сброс", color = Color.Red, fontSize = 12.sp)
-                        }
+                        TextButton(onClick = { viewModel.resetProgress() }) { Text("Сброс", color = Color.Red, fontSize = 12.sp) }
                     }
 
-                    // Умные эмодзи
                     val emoji = getAvatarEmoji(avatarState)
                     Text(emoji, fontSize = 60.sp, modifier = Modifier.padding(vertical = 4.dp))
 
-                    // 5 Шкал
                     StatBar("⚡ Энергия", avatarState.energy, Color(0xFFFFC107), 100)
                     Spacer(modifier = Modifier.height(4.dp))
                     StatBar("📈 Рейтинг", avatarState.creditScore, Color(0xFF9C27B0), 850)
@@ -144,41 +116,20 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Кнопки трат
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 ActionButton("📚 Книги\n-2k", Color(0xFFE3F2FD)) { viewModel.onTransaction(TransactionCategory.EDUCATION, 2000.0, "Книги") }
                 ActionButton("🏋️ Спорт\n-3k", Color(0xFFFFEBEE)) { viewModel.onTransaction(TransactionCategory.SPORT, 3000.0, "Спортзал") }
                 ActionButton("🍔 Еда\n-500", Color(0xFFE8F5E9)) { viewModel.onTransaction(TransactionCategory.FOOD, 500.0, "Еда") }
             }
             Spacer(modifier = Modifier.height(8.dp))
-
-            // Кнопки действий
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Button(
-                    onClick = { viewModel.onSleep() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0)),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f).height(50.dp)
-                ) { Text("🛏️ Сон", fontSize = 14.sp) }
-
+                Button(onClick = { viewModel.onSleep() }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5C6BC0)), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(50.dp)) { Text("🛏️ Сон", fontSize = 14.sp) }
                 Spacer(modifier = Modifier.width(8.dp))
-
-                Button(
-                    onClick = { viewModel.onSalary() },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Black),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.weight(1f).height(50.dp)
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Работа", fontSize = 12.sp)
-                        Text("+${currentJob.salary.toInt()} ₽", fontSize = 10.sp, color = Color.Gray)
-                    }
+                Button(onClick = { viewModel.onSalary() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Black), shape = RoundedCornerShape(12.dp), modifier = Modifier.weight(1f).height(50.dp)) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) { Text("Работа", fontSize = 12.sp); Text("+${currentJob.salary.toInt()} ₽", fontSize = 10.sp, color = Color.Gray) }
                 }
             }
-
             Spacer(modifier = Modifier.height(10.dp))
-
-            // История
             Text("История:", fontWeight = FontWeight.Bold, modifier = Modifier.fillMaxWidth())
             LazyColumn(modifier = Modifier.fillMaxWidth().height(80.dp)) {
                 items(history) { transaction ->
@@ -191,79 +142,53 @@ fun TamagotchiScreen(viewModel: MainViewModel) {
     }
 }
 
-// --- ЭКРАН 2: СКИДКИ ---
-@Composable
-fun DiscountsScreen(viewModel: MainViewModel) {
-    val avatarState by viewModel.state.collectAsState()
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Награды 🎁", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
-        Text("Тратьте деньги, чтобы открывать скидки!", color = Color.Gray, fontSize = 14.sp, modifier = Modifier.padding(bottom = 16.dp))
-
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(viewModel.discounts) { discount ->
-                val spending = viewModel.getSpendingProgress(discount)
-                DiscountCard(discount, viewModel.isDiscountUnlocked(discount), spending)
-            }
-        }
-    }
-}
-
-// --- ЭКРАН 3: ИНВЕСТИЦИИ ---
 @Composable
 fun InvestmentsScreen(viewModel: MainViewModel) {
     val state by viewModel.state.collectAsState()
     val interestRate = viewModel.getCurrentInterestRate()
-    val dailyProfit = state.depositBalance * (interestRate / 100.0)
+    val loanRate = 5.0
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Text("Инвестиции 💼", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 24.dp))
+        Text("Финансы 🏦", fontSize = 28.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 16.dp))
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), shape = RoundedCornerShape(24.dp), modifier = Modifier.fillMaxWidth().height(180.dp)) {
-            Column(modifier = Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("На вашем счете", color = Color.Gray)
-                Text(text = "${state.depositBalance.toInt()} ₽", fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Ставка: ", fontSize = 16.sp)
-                    Text(text = String.format("%.1f%%", interestRate), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
-                    Text(" / день", fontSize = 14.sp, color = Color.Gray)
+        // Вклад
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("💰 Ваш Вклад", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+                Text("${state.depositBalance.toInt()} ₽", fontSize = 24.sp, fontWeight = FontWeight.Bold)
+                Text("Ставка: ${String.format("%.1f", interestRate)}% в день", fontSize = 12.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.investMoney(5000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)), modifier = Modifier.weight(1f).height(40.dp), contentPadding = PaddingValues(0.dp)) { Text("+5k") }
+                    Button(onClick = { viewModel.withdrawMoney(5000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF81C784)), modifier = Modifier.weight(1f).height(40.dp), contentPadding = PaddingValues(0.dp)) { Text("-5k") }
                 }
-                Text("(Зависит от Кредитного Рейтинга)", fontSize = 10.sp, color = Color.Gray)
             }
         }
-
         Spacer(modifier = Modifier.height(16.dp))
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-            Row(modifier = Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("Ожидаемый доход за ночь:")
-                Text("+${dailyProfit.toInt()} ₽", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
+        // Кредит
+        Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE)), shape = RoundedCornerShape(16.dp), modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text("💳 Ваш Кредит", fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                    if(state.loanBalance > 0) Text("⚠ Долг растет!", fontSize = 10.sp, color = Color.Red)
+                }
+                Text("${state.loanBalance.toInt()} ₽", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFFB71C1C))
+                Text("Ставка: $loanRate% в день (Грабеж!)", fontSize = 12.sp, color = Color.Gray)
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { viewModel.takeLoan(10000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350)), modifier = Modifier.weight(1f).height(40.dp), contentPadding = PaddingValues(0.dp)) { Text("Взять 10k") }
+                    Button(onClick = { viewModel.repayLoan(10000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE57373)), modifier = Modifier.weight(1f).height(40.dp), contentPadding = PaddingValues(0.dp)) { Text("Вернуть 10k") }
+                }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text("Управление активами", fontWeight = FontWeight.Bold, modifier = Modifier.align(Alignment.Start))
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Пополнить", color = Color.Gray, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(onClick = { viewModel.investMoney(1000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) { Text("+ 1k") }
-                Button(onClick = { viewModel.investMoney(5000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("+ 5k") }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Снять", color = Color.Gray, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(4.dp))
-                Button(onClick = { viewModel.withdrawMoney(1000.0) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF5350))) { Text("- 1k") }
-                Button(onClick = { viewModel.withdrawMoney(state.depositBalance) }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC62828))) { Text("Всё") }
-            }
-        }
+        Spacer(modifier = Modifier.weight(1f))
+        if (state.loanBalance > 0) Text("Внимание: Долг растет на 5% в день!", fontSize = 12.sp, color = Color.Red)
+        else Text("Совет: Избегайте кредитов.", fontSize = 12.sp, color = Color.Gray)
     }
 }
 
-// --- ФУНКЦИИ И КОМПОНЕНТЫ ---
-
+// --- ВСПОМОГАТЕЛЬНЫЕ ---
 fun getAvatarEmoji(state: AvatarState): String {
     return when {
         state.energy < 10 -> "😵"
@@ -277,6 +202,39 @@ fun getAvatarEmoji(state: AvatarState): String {
         state.mood > 80 -> "🤩"
         state.mood < 40 -> "😒"
         else -> "🙂"
+    }
+}
+
+@Composable
+fun DiscountsScreen(viewModel: MainViewModel) {
+    val avatarState by viewModel.state.collectAsState()
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        Text("Награды 🎁", fontSize = 24.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 8.dp))
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(viewModel.discounts) { discount ->
+                val spending = viewModel.getSpendingProgress(discount)
+                DiscountCard(discount, viewModel.isDiscountUnlocked(discount), spending)
+            }
+        }
+    }
+}
+
+@Composable
+fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) {
+    val cardColor = if (isUnlocked) Color(discount.color) else Color.White
+    val progress = (currentSpent / discount.requiredAmount).coerceIn(0.0, 1.0).toFloat()
+    Card(colors = CardDefaults.cardColors(containerColor = cardColor), border = if(isUnlocked) null else BorderStroke(1.dp, Color.LightGray), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.weight(1f)) { Text(discount.title, fontWeight = FontWeight.Bold); Text(discount.description, fontSize = 12.sp, color = Color.Gray) }
+                Icon(if(isUnlocked) Icons.Default.ShoppingCart else Icons.Default.Lock, null, tint = if(isUnlocked) Color.Black else Color.Gray)
+            }
+            if(!isUnlocked) {
+                val catName = when(discount.requiredCategory) { TransactionCategory.FOOD -> "Еда"; TransactionCategory.SPORT -> "Спорт"; TransactionCategory.EDUCATION -> "Книги"; else -> "Траты" }
+                Text("$catName: ${currentSpent.toInt()} / ${discount.requiredAmount.toInt()} ₽", fontSize = 12.sp, color = Color.Gray)
+                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top=4.dp).height(4.dp), color = Color(discount.color))
+            } else { Text("✅ Активно", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32)) }
+        }
     }
 }
 
@@ -312,25 +270,6 @@ fun StatBar(label: String, value: Int, color: Color, maxVal: Int) {
         Text(text = label, fontSize = 12.sp, modifier = Modifier.width(75.dp), fontWeight = FontWeight.Bold)
         LinearProgressIndicator(progress = { animatedProgress }, modifier = Modifier.weight(1f).height(8.dp).clip(RoundedCornerShape(5.dp)), color = color, trackColor = Color(0xFFEEEEEE))
         Text(text = "$value", fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp).width(30.dp))
-    }
-}
-
-@Composable
-fun DiscountCard(discount: Discount, isUnlocked: Boolean, currentSpent: Double) {
-    val cardColor = if (isUnlocked) Color(discount.color) else Color.White
-    val progress = (currentSpent / discount.requiredAmount).coerceIn(0.0, 1.0).toFloat()
-    Card(colors = CardDefaults.cardColors(containerColor = cardColor), border = if(isUnlocked) null else BorderStroke(1.dp, Color.LightGray), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) { Text(discount.title, fontWeight = FontWeight.Bold); Text(discount.description, fontSize = 12.sp, color = Color.Gray) }
-                Icon(if(isUnlocked) Icons.Default.ShoppingCart else Icons.Default.Lock, null, tint = if(isUnlocked) Color.Black else Color.Gray)
-            }
-            if(!isUnlocked) {
-                val catName = when(discount.requiredCategory) { TransactionCategory.FOOD -> "Еда"; TransactionCategory.SPORT -> "Спорт"; TransactionCategory.EDUCATION -> "Книги"; else -> "Траты" }
-                Text("$catName: ${currentSpent.toInt()} / ${discount.requiredAmount.toInt()} ₽", fontSize = 12.sp, color = Color.Gray)
-                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().padding(top=4.dp).height(4.dp), color = Color(discount.color))
-            } else { Text("✅ Активно", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32)) }
-        }
     }
 }
 

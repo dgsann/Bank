@@ -28,7 +28,6 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
     private val _levelUpEvent = MutableStateFlow<Int?>(null)
     val levelUpEvent = _levelUpEvent.asStateFlow()
 
-    // --- СПИСОК СКИДОК ---
     val discounts = listOf(
         Discount(1, "Вкусно и точка", "Кэшбэк 5% на бургеры", 2, 0xFFFFCC80, TransactionCategory.FOOD, 2000.0),
         Discount(2, "Читай-город", "Скидка 10% на книги", 3, 0xFF90CAF9, TransactionCategory.EDUCATION, 4000.0),
@@ -51,7 +50,8 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
-    // --- ИНВЕСТИЦИИ ---
+    // --- ФИНАНСЫ (ВКЛАД И КРЕДИТ) ---
+
     fun investMoney(amount: Double) {
         _state.update { currentState ->
             if (currentState.balance < amount) {
@@ -82,6 +82,45 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         }
     }
 
+    fun takeLoan(amount: Double) {
+        if (_state.value.creditScore < 200) {
+            _errorEvent.value = "Банк отказал! Низкий рейтинг."
+            return
+        }
+        val maxLoan = getCurrentJob().salary * 10
+        if (_state.value.loanBalance + amount > maxLoan) {
+            _errorEvent.value = "Лимит кредита превышен!"
+            return
+        }
+        _state.update {
+            val newState = it.copy(balance = it.balance + amount, loanBalance = it.loanBalance + amount)
+            storage.saveState(newState)
+            newState
+        }
+        _history.update { listOf("🏦 Взял кредит: +${amount.toInt()}₽") + it }
+    }
+
+    fun repayLoan(amount: Double) {
+        val currentLoan = _state.value.loanBalance
+        if (currentLoan <= 0) { _errorEvent.value = "Нет долгов!"; return }
+        val payment = if (amount > currentLoan) currentLoan else amount
+
+        _state.update { currentState ->
+            if (currentState.balance < payment) {
+                _errorEvent.value = "Недостаточно средств!"
+                return@update currentState
+            }
+            val newState = currentState.copy(
+                balance = currentState.balance - payment,
+                loanBalance = currentState.loanBalance - payment,
+                creditScore = (currentState.creditScore + 2).coerceAtMost(850)
+            )
+            storage.saveState(newState)
+            newState
+        }
+        _history.update { listOf("💸 Погасил долг: -${payment.toInt()}₽") + it }
+    }
+
     fun getCurrentInterestRate(): Double {
         val score = _state.value.creditScore
         val baseRate = 1.0
@@ -105,20 +144,10 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
             var newState = EvolutionEngine.calculateNewState(currentState, category, amount)
             newState = newState.copy(balance = currentState.balance - amount)
 
-            // Обновление специфических статов
             newState = when(category) {
-                TransactionCategory.SPORT -> newState.copy(
-                    spentOnSport = newState.spentOnSport + amount,
-                    energy = (newState.energy - 20).coerceAtLeast(0)
-                )
-                TransactionCategory.EDUCATION -> newState.copy(
-                    spentOnEducation = newState.spentOnEducation + amount,
-                    energy = (newState.energy - 5).coerceAtLeast(0)
-                )
-                TransactionCategory.FOOD -> newState.copy(
-                    spentOnFood = newState.spentOnFood + amount,
-                    energy = (newState.energy + 10).coerceAtMost(100)
-                )
+                TransactionCategory.SPORT -> newState.copy(spentOnSport = newState.spentOnSport + amount, energy = (newState.energy - 20).coerceAtLeast(0))
+                TransactionCategory.EDUCATION -> newState.copy(spentOnEducation = newState.spentOnEducation + amount, energy = (newState.energy - 5).coerceAtLeast(0))
+                TransactionCategory.FOOD -> newState.copy(spentOnFood = newState.spentOnFood + amount, energy = (newState.energy + 10).coerceAtMost(100))
                 else -> newState
             }
 
@@ -135,62 +164,53 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
 
             newState = checkHouseUpgrade(newState)
             storage.saveState(newState)
-            // Обновляем историю "снаружи" нельзя, но для учебного проекта допустим side-effect внутри
-            // или обновляем историю ниже, если стейт изменился.
             newState
         }
-        if (_errorEvent.value == null) {
-            _history.update { list -> listOf("$description (-${amount.toInt()}₽)") + list }
-        }
+        if (_errorEvent.value == null) _history.update { list -> listOf("$description (-${amount.toInt()}₽)") + list }
     }
 
-    // --- ЗАРПЛАТА (КАРЬЕРА) ---
     fun onSalary() {
         if (_state.value.energy < 30) {
             _errorEvent.value = "Вы валитесь с ног! Поспите."
             return
         }
-
         val job = getCurrentJob()
-
         _state.update {
-            var newState = it.copy(
-                balance = it.balance + job.salary,
-                energy = (it.energy - 30).coerceAtLeast(0),
-                creditScore = (it.creditScore + 5).coerceAtMost(850)
-            )
+            var newState = it.copy(balance = it.balance + job.salary, energy = (it.energy - 30).coerceAtLeast(0), creditScore = (it.creditScore + 5).coerceAtMost(850))
             newState = checkHouseUpgrade(newState)
             storage.saveState(newState)
             newState
         }
-        _history.update { list -> listOf("💰 ЗП (${job.title}): +${job.salary.toInt()}₽") + list }
+        _history.update { listOf("💰 ЗП (${job.title}): +${job.salary.toInt()}₽") + it }
     }
 
-    // --- СОН (ВОССТАНОВЛЕНИЕ + УБЫВАНИЕ СТАТОВ + ПРОЦЕНТЫ) ---
+    // --- СОН (Расчет процентов, деградация статов) ---
     fun onSleep() {
-        val rate = getCurrentInterestRate()
+        val depositRate = getCurrentInterestRate()
+        val loanRate = 5.0
 
         _state.update { currentState ->
-            // 1. Проценты
-            val deposit = currentState.depositBalance
-            val profit = deposit * (rate / 100.0)
+            val depositProfit = currentState.depositBalance * (depositRate / 100.0)
+            val loanInterest = currentState.loanBalance * (loanRate / 100.0)
 
-            // 2. Деградация статов (мышцы атрофируются, знания забываются)
             val newStrength = (currentState.strength - 5).coerceAtLeast(0)
             val newIntellect = (currentState.intellect - 3).coerceAtLeast(0)
+            val scorePenalty = if (currentState.loanBalance > 0) 1 else 0
 
-            // 3. Восстановление энергии
             val newState = currentState.copy(
                 energy = 100,
                 mood = (currentState.mood + 10).coerceAtMost(100),
-                depositBalance = currentState.depositBalance + profit,
+                depositBalance = currentState.depositBalance + depositProfit,
+                loanBalance = currentState.loanBalance + loanInterest,
                 strength = newStrength,
-                intellect = newIntellect
+                intellect = newIntellect,
+                creditScore = (currentState.creditScore - scorePenalty).coerceAtLeast(0)
             )
             storage.saveState(newState)
 
-            val msg = if (profit > 0) "🛏️ Сон: +${profit.toInt()}₽ (Вклад). Статы снизились."
-            else "🛏️ Вы выспались! Сила и Ум немного упали."
+            var msg = "🛏️ Новый день."
+            if (depositProfit > 0) msg += " Вклад: +${depositProfit.toInt()}."
+            if (loanInterest > 0) msg += " Кредит: -${loanInterest.toInt()}."
             _history.update { listOf(msg) + it }
 
             newState
@@ -261,7 +281,6 @@ class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
         _state.value = newState
         _history.value = emptyList()
     }
-
     fun getSpendingProgress(d: Discount) = when(d.requiredCategory) {
         TransactionCategory.FOOD -> _state.value.spentOnFood
         TransactionCategory.SPORT -> _state.value.spentOnSport
