@@ -30,6 +30,7 @@ import com.example.bank.ui.theme.Accent
 import com.example.bank.ui.theme.AccentGrowth
 import com.example.bank.ui.theme.AccentHealth
 import com.example.bank.ui.theme.BorderColor
+import com.example.bank.ui.theme.DangerColor
 import com.example.bank.ui.theme.TextSecondary
 
 @Composable
@@ -86,7 +87,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                     .padding(top = 8.dp)
                     .height(7.dp)
                     .clip(RoundedCornerShape(4.dp)),
-                color = if (spent > income && income > 0) com.example.bank.ui.theme.DangerColor else Accent,
+                color = if (spent > income && income > 0) DangerColor else Accent,
                 trackColor = BorderColor
             )
         }
@@ -102,7 +103,7 @@ fun HomeScreen(viewModel: MainViewModel) {
                     "${if (saved >= 0) "+" else ""}${saved.toInt()} ₽",
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (saved >= 0) Accent else com.example.bank.ui.theme.DangerColor
+                    color = if (saved >= 0) Accent else DangerColor
                 )
             }
             if (budget.savingsGoal > 0) {
