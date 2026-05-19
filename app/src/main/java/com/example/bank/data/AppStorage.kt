@@ -15,22 +15,26 @@ class AppStorage(context: Context) {
 
     fun loadReceipts(): List<Receipt> {
         val raw = prefs.getString("receipts", null) ?: return emptyList()
-        val arr = JSONArray(raw)
-        val result = ArrayList<Receipt>(arr.length())
-        for (i in 0 until arr.length()) {
-            val o = arr.getJSONObject(i)
-            result.add(
-                Receipt(
-                    id = o.getLong("id"),
-                    dateMillis = o.getLong("dateMillis"),
-                    store = if (o.isNull("store")) null else o.getString("store"),
-                    category = ReceiptCategory.valueOf(o.getString("category")),
-                    amount = o.getDouble("amount"),
-                    source = ReceiptSource.valueOf(o.optString("source", "MANUAL"))
+        return try {
+            val arr = JSONArray(raw)
+            val result = ArrayList<Receipt>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                result.add(
+                    Receipt(
+                        id = o.getLong("id"),
+                        dateMillis = o.getLong("dateMillis"),
+                        store = if (o.isNull("store")) null else o.getString("store"),
+                        category = ReceiptCategory.valueOf(o.getString("category")),
+                        amount = o.getDouble("amount"),
+                        source = ReceiptSource.valueOf(o.optString("source", "MANUAL"))
+                    )
                 )
-            )
+            }
+            result
+        } catch (e: Exception) {
+            emptyList()
         }
-        return result
     }
 
     fun saveReceipts(receipts: List<Receipt>) {
