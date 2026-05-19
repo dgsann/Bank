@@ -60,8 +60,9 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
             _error.value = "Сумма должна быть больше нуля"
             return
         }
+        val nextId = (_receipts.value.maxOfOrNull { it.id } ?: 0L) + 1L
         val receipt = Receipt(
-            id = System.currentTimeMillis(),
+            id = nextId,
             dateMillis = dateMillis,
             store = store?.trim()?.ifBlank { null },
             category = category,
