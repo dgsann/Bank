@@ -4,295 +4,136 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.bank.data.AvatarStorage
-import com.example.bank.logic.EvolutionEngine
-import com.example.bank.model.AvatarState
+import com.example.bank.data.AppStorage
+import com.example.bank.logic.FinancialHealthEngine
+import com.example.bank.model.AvatarStats
+import com.example.bank.model.BudgetSettings
 import com.example.bank.model.Discount
-import com.example.bank.model.TransactionCategory
+import com.example.bank.model.Receipt
+import com.example.bank.model.ReceiptCategory
+import com.example.bank.model.ReceiptSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
-import kotlin.random.Random
+import java.util.Calendar
 
-class MainViewModel(private val storage: AvatarStorage) : ViewModel() {
+class MainViewModel(private val storage: AppStorage) : ViewModel() {
 
-    private val _state = MutableStateFlow(storage.loadState())
-    val state = _state.asStateFlow()
+    private val _receipts = MutableStateFlow(storage.loadReceipts())
+    val receipts = _receipts.asStateFlow()
 
-    private val _history = MutableStateFlow<List<String>>(emptyList())
-    val history = _history.asStateFlow()
+    private val _budget = MutableStateFlow(storage.loadBudget())
+    val budget = _budget.asStateFlow()
 
-    private val _errorEvent = MutableStateFlow<String?>(null)
-    val errorEvent = _errorEvent.asStateFlow()
+    private val _stats = MutableStateFlow(computeStats())
+    val stats = _stats.asStateFlow()
 
-    private val _levelUpEvent = MutableStateFlow<Int?>(null)
-    val levelUpEvent = _levelUpEvent.asStateFlow()
+    private val _error = MutableStateFlow<String?>(null)
+    val error = _error.asStateFlow()
+
+    private val _toast = MutableStateFlow<String?>(null)
+    val toast = _toast.asStateFlow()
 
     val discounts = listOf(
-        Discount(1, "Вкусно и точка", "Кэшбэк 5% на бургеры", 2, 0xFFFFCC80, TransactionCategory.FOOD, 2000.0),
-        Discount(2, "Читай-город", "Скидка 10% на книги", 3, 0xFF90CAF9, TransactionCategory.EDUCATION, 4000.0),
-        Discount(3, "Спортмастер", "Скидка 20% на абонемент", 5, 0xFFEF9A9A, TransactionCategory.SPORT, 6000.0),
-        Discount(4, "Пятерочка", "Повышенный кэшбэк 3%", 7, 0xFFA5D6A7, TransactionCategory.FOOD, 5000.0),
-        Discount(5, "Premium Banking", "Бесплатное обслуживание", 10, 0xFFB39DDB, TransactionCategory.EDUCATION, 8000.0)
+        Discount(1, "−10% в «Читай-город»", "За траты на образование", ReceiptCategory.EDUCATION, 4000.0),
+        Discount(2, "−15% в FitnessHouse", "За траты на здоровье и спорт", ReceiptCategory.HEALTH, 6000.0),
+        Discount(3, "Кэшбэк 5% в кафе", "За траты в кафе и ресторанах", ReceiptCategory.CAFE, 4000.0),
+        Discount(4, "−7% в супермаркетах", "За траты на продукты", ReceiptCategory.PRODUCTS, 10000.0),
+        Discount(5, "−20% на онлайн-кинотеатры", "За траты на развлечения", ReceiptCategory.ENTERTAINMENT, 3000.0)
     )
 
-    // --- ЛОГИКА КАРЬЕРЫ ---
-    data class JobTier(val title: String, val salary: Double, val minIntellect: Int)
-
-    fun getCurrentJob(): JobTier {
-        val intellect = _state.value.intellect
-        return when {
-            intellect >= 100 -> JobTier("Гендиректор 👑", 200000.0, 100)
-            intellect >= 80 -> JobTier("Топ-менеджер 💼", 80000.0, 80)
-            intellect >= 50 -> JobTier("Тимлид 👨‍💻", 40000.0, 50)
-            intellect >= 20 -> JobTier("Младший спец ☕", 15000.0, 20)
-            else -> JobTier("Стажер 🧹", 5000.0, 0)
-        }
+    private fun currentYearMonth(): Pair<Int, Int> {
+        val c = Calendar.getInstance()
+        return c.get(Calendar.YEAR) to (c.get(Calendar.MONTH) + 1)
     }
 
-    // --- ФИНАНСЫ (ВКЛАД И КРЕДИТ) ---
-
-    fun investMoney(amount: Double) {
-        _state.update { currentState ->
-            if (currentState.balance < amount) {
-                _errorEvent.value = "Недостаточно наличных!"
-                return@update currentState
-            }
-            val newState = currentState.copy(
-                balance = currentState.balance - amount,
-                depositBalance = currentState.depositBalance + amount
-            )
-            storage.saveState(newState)
-            newState
-        }
+    private fun computeStats(): AvatarStats {
+        val (y, m) = currentYearMonth()
+        return FinancialHealthEngine.computeStats(_receipts.value, _budget.value, y, m)
     }
 
-    fun withdrawMoney(amount: Double) {
-        _state.update { currentState ->
-            if (currentState.depositBalance < amount) {
-                _errorEvent.value = "На вкладе нет такой суммы!"
-                return@update currentState
-            }
-            val newState = currentState.copy(
-                balance = currentState.balance + amount,
-                depositBalance = currentState.depositBalance - amount
-            )
-            storage.saveState(newState)
-            newState
-        }
+    private fun refresh() {
+        _stats.value = computeStats()
     }
 
-    fun takeLoan(amount: Double) {
-        if (_state.value.creditScore < 200) {
-            _errorEvent.value = "Банк отказал! Низкий рейтинг."
+    fun addReceipt(amount: Double, category: ReceiptCategory, store: String?, dateMillis: Long) {
+        if (amount <= 0.0) {
+            _error.value = "Сумма должна быть больше нуля"
             return
         }
-        val maxLoan = getCurrentJob().salary * 10
-        if (_state.value.loanBalance + amount > maxLoan) {
-            _errorEvent.value = "Лимит кредита превышен!"
+        val receipt = Receipt(
+            id = System.currentTimeMillis(),
+            dateMillis = dateMillis,
+            store = store?.trim()?.ifBlank { null },
+            category = category,
+            amount = amount,
+            source = ReceiptSource.MANUAL
+        )
+        _receipts.value = listOf(receipt) + _receipts.value
+        storage.saveReceipts(_receipts.value)
+        refresh()
+    }
+
+    fun deleteReceipt(id: Long) {
+        _receipts.value = _receipts.value.filterNot { it.id == id }
+        storage.saveReceipts(_receipts.value)
+        refresh()
+    }
+
+    fun setMonthlyIncome(value: Double) {
+        if (value < 0.0) {
+            _error.value = "Доход не может быть отрицательным"
             return
         }
-        _state.update {
-            val newState = it.copy(balance = it.balance + amount, loanBalance = it.loanBalance + amount)
-            storage.saveState(newState)
-            newState
-        }
-        _history.update { listOf("🏦 Взял кредит: +${amount.toInt()}₽") + it }
+        _budget.value = _budget.value.copy(monthlyIncome = value)
+        storage.saveBudget(_budget.value)
+        refresh()
     }
 
-    fun repayLoan(amount: Double) {
-        val currentLoan = _state.value.loanBalance
-        if (currentLoan <= 0) { _errorEvent.value = "Нет долгов!"; return }
-        val payment = if (amount > currentLoan) currentLoan else amount
-
-        _state.update { currentState ->
-            if (currentState.balance < payment) {
-                _errorEvent.value = "Недостаточно средств!"
-                return@update currentState
-            }
-            val newState = currentState.copy(
-                balance = currentState.balance - payment,
-                loanBalance = currentState.loanBalance - payment,
-                creditScore = (currentState.creditScore + 2).coerceAtMost(850)
-            )
-            storage.saveState(newState)
-            newState
-        }
-        _history.update { listOf("💸 Погасил долг: -${payment.toInt()}₽") + it }
-    }
-
-    fun getCurrentInterestRate(): Double {
-        val score = _state.value.creditScore
-        val baseRate = 1.0
-        val bonus = ((score - 300).coerceAtLeast(0) / 100.0) * 0.5
-        return baseRate + bonus
-    }
-
-    // --- ТРАНЗАКЦИИ ---
-    fun onTransaction(category: TransactionCategory, amount: Double, description: String) {
-        _state.update { currentState ->
-            if (currentState.balance < amount) {
-                _errorEvent.value = "Недостаточно средств!"
-                return@update currentState
-            }
-            if (category == TransactionCategory.SPORT && currentState.energy < 20) {
-                _errorEvent.value = "Слишком устал для спорта! Нужно поспать."
-                return@update currentState
-            }
-
-            val oldLevel = currentState.level
-            var newState = EvolutionEngine.calculateNewState(currentState, category, amount)
-            newState = newState.copy(balance = currentState.balance - amount)
-
-            newState = when(category) {
-                TransactionCategory.SPORT -> newState.copy(spentOnSport = newState.spentOnSport + amount, energy = (newState.energy - 20).coerceAtLeast(0))
-                TransactionCategory.EDUCATION -> newState.copy(spentOnEducation = newState.spentOnEducation + amount, energy = (newState.energy - 5).coerceAtLeast(0))
-                TransactionCategory.FOOD -> newState.copy(spentOnFood = newState.spentOnFood + amount, energy = (newState.energy + 10).coerceAtMost(100))
-                else -> newState
-            }
-
-            if (newState.balance < 1000) {
-                newState = newState.copy(creditScore = (newState.creditScore - 5).coerceAtLeast(0))
-            }
-
-            if (newState.level > oldLevel) {
-                val bonus = 5000.0
-                newState = newState.copy(balance = newState.balance + bonus)
-                _levelUpEvent.value = newState.level
-                _history.update { list -> listOf("🎁 БОНУС УРОВНЯ (+${bonus.toInt()}₽)") + list }
-            }
-
-            newState = checkHouseUpgrade(newState)
-            storage.saveState(newState)
-            newState
-        }
-        if (_errorEvent.value == null) _history.update { list -> listOf("$description (-${amount.toInt()}₽)") + list }
-    }
-
-    fun onSalary() {
-        if (_state.value.energy < 30) {
-            _errorEvent.value = "Вы валитесь с ног! Поспите."
+    fun setSavingsGoal(value: Double) {
+        if (value < 0.0) {
+            _error.value = "Цель не может быть отрицательной"
             return
         }
-        val job = getCurrentJob()
-        _state.update {
-            var newState = it.copy(balance = it.balance + job.salary, energy = (it.energy - 30).coerceAtLeast(0), creditScore = (it.creditScore + 5).coerceAtMost(850))
-            newState = checkHouseUpgrade(newState)
-            storage.saveState(newState)
-            newState
-        }
-        _history.update { listOf("💰 ЗП (${job.title}): +${job.salary.toInt()}₽") + it }
+        _budget.value = _budget.value.copy(savingsGoal = value)
+        storage.saveBudget(_budget.value)
+        refresh()
     }
 
-    // --- СОН (Расчет процентов, деградация статов) ---
-    fun onSleep() {
-        val depositRate = getCurrentInterestRate()
-        val loanRate = 5.0
-
-        _state.update { currentState ->
-            val depositProfit = currentState.depositBalance * (depositRate / 100.0)
-            val loanInterest = currentState.loanBalance * (loanRate / 100.0)
-
-            val newStrength = (currentState.strength - 5).coerceAtLeast(0)
-            val newIntellect = (currentState.intellect - 3).coerceAtLeast(0)
-            val scorePenalty = if (currentState.loanBalance > 0) 1 else 0
-
-            val newState = currentState.copy(
-                energy = 100,
-                mood = (currentState.mood + 10).coerceAtMost(100),
-                depositBalance = currentState.depositBalance + depositProfit,
-                loanBalance = currentState.loanBalance + loanInterest,
-                strength = newStrength,
-                intellect = newIntellect,
-                creditScore = (currentState.creditScore - scorePenalty).coerceAtLeast(0)
-            )
-            storage.saveState(newState)
-
-            var msg = "🛏️ Новый день."
-            if (depositProfit > 0) msg += " Вклад: +${depositProfit.toInt()}."
-            if (loanInterest > 0) msg += " Кредит: -${loanInterest.toInt()}."
-            _history.update { listOf(msg) + it }
-
-            newState
-        }
+    fun monthlySpent(): Double {
+        val (y, m) = currentYearMonth()
+        return FinancialHealthEngine.monthlySpent(_receipts.value, y, m)
     }
 
-    // --- РАНДОМ ---
-    fun triggerRandomEvent() {
-        val randomValue = Random.nextInt(0, 100)
-        var msg = ""
-        _state.update { currentState ->
-            var newState = currentState.copy()
-            when {
-                randomValue < 25 -> {
-                    newState = newState.copy(balance = newState.balance + 1000.0)
-                    msg = "🍀 Нашел 1000₽!"
-                }
-                randomValue < 45 -> {
-                    val lost = 500.0
-                    if(newState.balance >= lost) {
-                        newState = newState.copy(balance = newState.balance - lost, creditScore = (newState.creditScore - 5).coerceAtLeast(0))
-                        msg = "💸 Потерял 500₽"
-                    } else msg = "😅 Чуть не потерял деньги"
-                }
-                randomValue < 55 -> {
-                    newState = newState.copy(balance = newState.balance + 10000.0, mood = 100, creditScore = (newState.creditScore+20).coerceAtMost(850))
-                    msg = "🎰 ДЖЕКПОТ! +10 000₽"
-                    _levelUpEvent.value = newState.level
-                }
-                else -> {
-                    newState = newState.copy(energy = (newState.energy - 10).coerceAtLeast(0))
-                    msg = "🥱 Устал без причины"
-                }
-            }
-            newState = checkHouseUpgrade(newState)
-            storage.saveState(newState)
-            newState
-        }
-        if (msg.isNotEmpty()) {
-            _history.update { listOf(msg) + it }
-            _errorEvent.value = msg
-        }
+    fun spentInCategory(category: ReceiptCategory): Double {
+        val (y, m) = currentYearMonth()
+        return FinancialHealthEngine.spentByCategory(_receipts.value, y, m)[category] ?: 0.0
     }
 
-    // --- ВСПОМОГАТЕЛЬНЫЕ ---
-    private fun checkHouseUpgrade(currentState: AvatarState): AvatarState {
-        val balance = currentState.balance
-        var newHouseLevel = 1
-        if (balance >= 100000) newHouseLevel = 4
-        else if (balance >= 50000) newHouseLevel = 3
-        else if (balance >= 20000) newHouseLevel = 2
-        return currentState.copy(houseLevel = newHouseLevel)
+    fun isDiscountUnlocked(d: Discount): Boolean =
+        spentInCategory(d.category) >= d.requiredAmount
+
+    fun activateDiscount(d: Discount) {
+        val code = "FC-" + (1000..9999).random()
+        _toast.value = "Промокод $code скопирован (демо). Скидки подтягиваются из партнёрской сети."
     }
 
-    fun getNextHouseTarget(): Double {
-        val balance = _state.value.balance
-        return when {
-            balance < 20000 -> 20000.0
-            balance < 50000 -> 50000.0
-            balance < 100000 -> 100000.0
-            else -> 0.0
-        }
+    fun resetData() {
+        storage.clearAll()
+        _receipts.value = emptyList()
+        _budget.value = BudgetSettings()
+        refresh()
     }
 
-    fun resetProgress() {
-        val newState = AvatarState()
-        storage.saveState(newState)
-        _state.value = newState
-        _history.value = emptyList()
+    fun clearError() {
+        _error.value = null
     }
-    fun getSpendingProgress(d: Discount) = when(d.requiredCategory) {
-        TransactionCategory.FOOD -> _state.value.spentOnFood
-        TransactionCategory.SPORT -> _state.value.spentOnSport
-        TransactionCategory.EDUCATION -> _state.value.spentOnEducation
-        else -> 0.0
+
+    fun clearToast() {
+        _toast.value = null
     }
-    fun isDiscountUnlocked(d: Discount) = getSpendingProgress(d) >= d.requiredAmount
-    fun clearError() { _errorEvent.value = null }
-    fun dismissLevelUpDialog() { _levelUpEvent.value = null }
 
     companion object {
-        fun factory(storage: AvatarStorage): ViewModelProvider.Factory = viewModelFactory {
+        fun factory(storage: AppStorage): ViewModelProvider.Factory = viewModelFactory {
             initializer { MainViewModel(storage) }
         }
     }

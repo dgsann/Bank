@@ -3,9 +3,12 @@ package com.example.bank
 import com.example.bank.logic.FinancialHealthEngine
 import com.example.bank.model.AvatarStats
 import com.example.bank.model.BudgetSettings
+import com.example.bank.model.Discount
 import com.example.bank.model.Receipt
 import com.example.bank.model.ReceiptCategory
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Calendar
 
@@ -109,5 +112,14 @@ class FinancialHealthEngineTest {
         assertEquals("😐", FinancialHealthEngine.avatarEmoji(55))
         assertEquals("😟", FinancialHealthEngine.avatarEmoji(35))
         assertEquals("😰", FinancialHealthEngine.avatarEmoji(10))
+    }
+
+    @Test
+    fun isDiscountUnlocked_triggersAtThreshold() {
+        val d = Discount(1, "−10%", "Образование", ReceiptCategory.EDUCATION, 4000.0)
+        val under = listOf(receipt(2026, 5, 1, 3000.0, ReceiptCategory.EDUCATION))
+        val over = listOf(receipt(2026, 5, 1, 4000.0, ReceiptCategory.EDUCATION))
+        assertFalse(FinancialHealthEngine.isDiscountUnlocked(d, under, 2026, 5))
+        assertTrue(FinancialHealthEngine.isDiscountUnlocked(d, over, 2026, 5))
     }
 }

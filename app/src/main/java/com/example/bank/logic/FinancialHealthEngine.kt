@@ -2,6 +2,7 @@ package com.example.bank.logic
 
 import com.example.bank.model.AvatarStats
 import com.example.bank.model.BudgetSettings
+import com.example.bank.model.Discount
 import com.example.bank.model.Receipt
 import com.example.bank.model.ReceiptCategory
 import java.util.Calendar
@@ -82,4 +83,9 @@ object FinancialHealthEngine {
         financialHealth >= 30 -> "😟"
         else -> "😰"
     }
+
+    fun isDiscountUnlocked(
+        discount: Discount, receipts: List<Receipt>, year: Int, month: Int
+    ): Boolean =
+        (spentByCategory(receipts, year, month)[discount.category] ?: 0.0) >= discount.requiredAmount
 }

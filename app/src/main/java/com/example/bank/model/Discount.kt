@@ -4,8 +4,6 @@ data class Discount(
     val id: Int,
     val title: String,
     val description: String,
-    val requiredLevel: Int,
-    val color: Long,
-    val requiredCategory: TransactionCategory,
+    val category: ReceiptCategory,
     val requiredAmount: Double
 )
