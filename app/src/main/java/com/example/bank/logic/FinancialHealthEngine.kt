@@ -44,8 +44,10 @@ object FinancialHealthEngine {
         return (20.0 + 80.0 * ratioToGoal).roundToInt().coerceIn(0, 100)
     }
 
-    private fun norm(value: Double, reference: Double) =
-        (value / reference).coerceIn(0.0, 1.0)
+    private fun norm(value: Double, reference: Double): Double {
+        if (reference <= 0.0) return 0.0
+        return (value / reference).coerceIn(0.0, 1.0)
+    }
 
     fun lifestyleStats(receipts: List<Receipt>, year: Int, month: Int): AvatarStats {
         val cat = spentByCategory(receipts, year, month)
