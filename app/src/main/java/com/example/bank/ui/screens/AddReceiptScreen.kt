@@ -66,7 +66,7 @@ fun AddReceiptScreen(viewModel: MainViewModel, onSaved: () -> Unit) {
         Text("Категория", fontSize = 11.sp, color = TextSecondary)
         Spacer(Modifier.height(6.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            ReceiptCategory.values().forEach { cat ->
+            ReceiptCategory.entries.forEach { cat ->
                 FilterChip(
                     selected = selected == cat,
                     onClick = { selected = cat },
@@ -99,6 +99,7 @@ fun AddReceiptScreen(viewModel: MainViewModel, onSaved: () -> Unit) {
                 if (amount > 0.0) {
                     amountText = ""
                     store = ""
+                    selected = ReceiptCategory.PRODUCTS
                     onSaved()
                 }
             },
