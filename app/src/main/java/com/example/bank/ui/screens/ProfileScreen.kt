@@ -11,10 +11,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -24,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bank.presentation.MainViewModel
@@ -34,13 +37,14 @@ import com.example.bank.ui.theme.TextSecondary
 @Composable
 fun ProfileScreen(viewModel: MainViewModel) {
     val budget by viewModel.budget.collectAsState()
-    val receipts by viewModel.receipts.collectAsState()
+    val receipts by viewModel.receipts.collectAsState() // подписка: держит monthlySpent() актуальным
     var income by remember(budget.monthlyIncome) {
         mutableStateOf(if (budget.monthlyIncome > 0) budget.monthlyIncome.toInt().toString() else "")
     }
     var goal by remember(budget.savingsGoal) {
         mutableStateOf(if (budget.savingsGoal > 0) budget.savingsGoal.toInt().toString() else "")
     }
+    var showResetConfirm by remember { mutableStateOf(false) }
 
     Column(
         modifier = Modifier
@@ -98,7 +102,7 @@ fun ProfileScreen(viewModel: MainViewModel) {
 
         Spacer(Modifier.height(16.dp))
         Button(
-            onClick = { viewModel.resetData() },
+            onClick = { showResetConfirm = true },
             colors = ButtonDefaults.buttonColors(containerColor = DangerColor),
             modifier = Modifier.fillMaxWidth().height(46.dp)
         ) { Text("Сбросить все данные") }
@@ -109,7 +113,24 @@ fun ProfileScreen(viewModel: MainViewModel) {
             fontSize = 10.sp,
             color = TextSecondary,
             modifier = Modifier.fillMaxWidth(),
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+            textAlign = TextAlign.Center
+        )
+    }
+
+    if (showResetConfirm) {
+        AlertDialog(
+            onDismissRequest = { showResetConfirm = false },
+            title = { Text("Сбросить все данные?") },
+            text = { Text("Будут удалены все чеки и настройки бюджета. Действие необратимо.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.resetData()
+                    showResetConfirm = false
+                }) { Text("Сбросить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetConfirm = false }) { Text("Отмена") }
+            }
         )
     }
 }
