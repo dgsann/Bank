@@ -39,9 +39,13 @@ fun ReceiptsScreen(viewModel: MainViewModel) {
     val receipts by viewModel.receipts.collectAsState()
     var pendingDelete by remember { mutableStateOf<Receipt?>(null) }
     val dayFmt = remember { SimpleDateFormat("d MMMM", Locale("ru")) }
-    val grouped = receipts
-        .sortedByDescending { it.dateMillis }
-        .groupBy { dayFmt.format(Date(it.dateMillis)) }
+    val keyFmt = remember { SimpleDateFormat("yyyy-DDD", Locale("ru")) }
+    val grouped = remember(receipts) {
+        receipts
+            .sortedByDescending { it.dateMillis }
+            .groupBy { keyFmt.format(Date(it.dateMillis)) }
+            .mapKeys { (_, sameDay) -> dayFmt.format(Date(sameDay.first().dateMillis)) }
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("Чеки", fontSize = 20.sp, fontWeight = FontWeight.Bold)
