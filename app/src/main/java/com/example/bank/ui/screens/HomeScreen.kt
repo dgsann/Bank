@@ -93,27 +93,29 @@ fun HomeScreen(viewModel: MainViewModel) {
         }
         Spacer(Modifier.height(10.dp))
 
-        GlassCard {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Накоплено за месяц", fontSize = 12.sp, color = TextSecondary)
-                Text(
-                    "${if (saved >= 0) "+" else ""}${saved.toInt()} ₽",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = if (saved >= 0) Accent else DangerColor
-                )
-            }
-            if (budget.savingsGoal > 0) {
-                val goalPct = (saved / budget.savingsGoal).coerceIn(0.0, 1.0)
-                Text(
-                    "Цель: ${budget.savingsGoal.toInt()} ₽  ·  ${(goalPct * 100).toInt()}%",
-                    fontSize = 11.sp,
-                    color = TextSecondary,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
+        if (income > 0) {
+            GlassCard {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Накоплено за месяц", fontSize = 12.sp, color = TextSecondary)
+                    Text(
+                        "${if (saved >= 0) "+" else ""}${saved.toInt()} ₽",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (saved >= 0) Accent else DangerColor
+                    )
+                }
+                if (budget.savingsGoal > 0) {
+                    val goalPct = (saved / budget.savingsGoal).coerceIn(0.0, 1.0)
+                    Text(
+                        "Цель: ${budget.savingsGoal.toInt()} ₽  ·  ${(goalPct * 100).toInt()}%",
+                        fontSize = 11.sp,
+                        color = TextSecondary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                }
             }
         }
         Spacer(Modifier.height(16.dp))

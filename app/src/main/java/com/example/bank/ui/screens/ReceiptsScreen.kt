@@ -44,7 +44,7 @@ fun ReceiptsScreen(viewModel: MainViewModel) {
         receipts
             .sortedByDescending { it.dateMillis }
             .groupBy { keyFmt.format(Date(it.dateMillis)) }
-            .mapKeys { (_, sameDay) -> dayFmt.format(Date(sameDay.first().dateMillis)) }
+            .map { (_, sameDay) -> dayFmt.format(Date(sameDay.first().dateMillis)) to sameDay }
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {

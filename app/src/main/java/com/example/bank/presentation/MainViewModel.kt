@@ -110,9 +110,6 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
         return FinancialHealthEngine.spentByCategory(_receipts.value, y, m)[category] ?: 0.0
     }
 
-    fun isDiscountUnlocked(d: Discount): Boolean =
-        spentInCategory(d.category) >= d.requiredAmount
-
     fun activateDiscount(d: Discount) {
         val code = "FC-" + (1000..9999).random()
         _toast.value = "Промокод $code скопирован (демо). Скидки подтягиваются из партнёрской сети."
