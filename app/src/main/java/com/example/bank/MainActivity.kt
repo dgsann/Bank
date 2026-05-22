@@ -31,6 +31,7 @@ import androidx.compose.ui.platform.LocalContext
 import com.example.bank.data.AppStorage
 import com.example.bank.presentation.MainViewModel
 import com.example.bank.ui.screens.AddReceiptScreen
+import com.example.bank.ui.screens.ScannerScreen
 import com.example.bank.ui.screens.DiscountsScreen
 import com.example.bank.ui.screens.HomeScreen
 import com.example.bank.ui.screens.ProfileScreen
@@ -52,6 +53,10 @@ fun MainScreen(viewModel: MainViewModel) {
     val context = LocalContext.current
     val error by viewModel.error.collectAsState()
     val toast by viewModel.toast.collectAsState()
+    val isScanning by viewModel.isScanning.collectAsState()
+    val scannerStep by viewModel.scannerStep.collectAsState()
+
+    val showBottomBar = !isScanning || scannerStep == MainViewModel.ScannerStep.IDLE
 
     LaunchedEffect(error) {
         error?.let {
@@ -68,41 +73,48 @@ fun MainScreen(viewModel: MainViewModel) {
 
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    selected = tab == 0,
-                    onClick = { tab = 0 },
-                    icon = { Icon(Icons.Default.Home, null) },
-                    label = { Text("Главная") }
-                )
-                NavigationBarItem(
-                    selected = tab == 1,
-                    onClick = { tab = 1 },
-                    icon = { Icon(Icons.Default.DateRange, null) },
-                    label = { Text("Чеки") }
-                )
-                NavigationBarItem(
-                    selected = tab == 2,
-                    onClick = { tab = 2 },
-                    icon = { Icon(Icons.Default.AddCircle, null) },
-                    label = { Text("Добавить") }
-                )
-                NavigationBarItem(
-                    selected = tab == 3,
-                    onClick = { tab = 3 },
-                    icon = { Icon(Icons.Default.Star, null) },
-                    label = { Text("Скидки") }
-                )
-                NavigationBarItem(
-                    selected = tab == 4,
-                    onClick = { tab = 4 },
-                    icon = { Icon(Icons.Default.Person, null) },
-                    label = { Text("Профиль") }
-                )
+            if (showBottomBar) {
+                NavigationBar {
+                    NavigationBarItem(
+                        selected = tab == 0,
+                        onClick = { tab = 0 },
+                        icon = { Icon(Icons.Default.Home, null) },
+                        label = { Text("Главная") }
+                    )
+                    NavigationBarItem(
+                        selected = tab == 1,
+                        onClick = { tab = 1 },
+                        icon = { Icon(Icons.Default.DateRange, null) },
+                        label = { Text("Чеки") }
+                    )
+                    NavigationBarItem(
+                        selected = tab == 2,
+                        onClick = { tab = 2 },
+                        icon = { Icon(Icons.Default.AddCircle, null) },
+                        label = { Text("Добавить") }
+                    )
+                    NavigationBarItem(
+                        selected = tab == 3,
+                        onClick = { tab = 3 },
+                        icon = { Icon(Icons.Default.Star, null) },
+                        label = { Text("Скидки") }
+                    )
+                    NavigationBarItem(
+                        selected = tab == 4,
+                        onClick = { tab = 4 },
+                        icon = { Icon(Icons.Default.Person, null) },
+                        label = { Text("Профиль") }
+                    )
+                }
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        val boxModifier = if (showBottomBar) {
+            Modifier.fillMaxSize().padding(innerPadding)
+        } else {
+            Modifier.fillMaxSize()
+        }
+        Box(modifier = boxModifier) {
             when (tab) {
                 0 -> HomeScreen(viewModel)
                 1 -> ReceiptsScreen(viewModel)
@@ -110,6 +122,10 @@ fun MainScreen(viewModel: MainViewModel) {
                 3 -> DiscountsScreen(viewModel)
                 4 -> ProfileScreen(viewModel)
             }
+        }
+
+        if (isScanning) {
+            ScannerScreen(viewModel)
         }
     }
 }

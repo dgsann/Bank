@@ -28,6 +28,8 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
 import com.example.bank.model.ReceiptCategory
 import com.example.bank.presentation.MainViewModel
 import com.example.bank.ui.theme.BorderColor
@@ -117,10 +119,9 @@ fun AddReceiptScreen(viewModel: MainViewModel, onSaved: () -> Unit) {
         ) { Text("📧 Импорт с почты · скоро", color = TextTertiary) }
         Spacer(Modifier.height(8.dp))
         Button(
-            onClick = {},
-            enabled = false,
-            colors = ButtonDefaults.buttonColors(disabledContainerColor = BorderColor),
+            onClick = { viewModel.startScanning() },
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
             modifier = Modifier.fillMaxWidth().height(46.dp)
-        ) { Text("📷 Скан фото чека · скоро", color = TextTertiary) }
+        ) { Text("📷 Скан фото чека", color = Color.White) }
     }
 }

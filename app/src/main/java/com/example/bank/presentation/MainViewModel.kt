@@ -10,6 +10,7 @@ import com.example.bank.model.AvatarStats
 import com.example.bank.model.BudgetSettings
 import com.example.bank.model.Discount
 import com.example.bank.model.Receipt
+import com.example.bank.model.ReceiptItem
 import com.example.bank.model.ReceiptCategory
 import com.example.bank.model.ReceiptSource
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,19 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
 
     private val _toast = MutableStateFlow<String?>(null)
     val toast = _toast.asStateFlow()
+
+    // --- SCANNER STATE ---
+    private val _isScanning = MutableStateFlow(false)
+    val isScanning = _isScanning.asStateFlow()
+
+    private val _scannerStep = MutableStateFlow(ScannerStep.IDLE)
+    val scannerStep = _scannerStep.asStateFlow()
+
+    private val _scannedReceipt = MutableStateFlow<Receipt?>(null)
+    val scannedReceipt = _scannedReceipt.asStateFlow()
+
+    enum class ScannerStep { IDLE, CAPTURING, ANALYZING, RESULT }
+    // ---------------------
 
     val discounts = listOf(
         Discount(1, "−10% в «Читай-город»", "За траты на образование", ReceiptCategory.EDUCATION, 4000.0),
@@ -129,6 +143,46 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
     fun clearToast() {
         _toast.value = null
     }
+
+    // --- SCANNER ACTIONS ---
+    fun startScanning() {
+        _isScanning.value = true
+        _scannerStep.value = ScannerStep.CAPTURING
+    }
+
+    fun takePhoto() {
+        _scannerStep.value = ScannerStep.ANALYZING
+        // Симуляция распознавания (3 секунды для реализма видео)
+        kotlin.concurrent.thread {
+            Thread.sleep(3000)
+            _scannedReceipt.value = Receipt(
+                id = 0,
+                dateMillis = System.currentTimeMillis(),
+                store = "Магазин (Демо)",
+                category = ReceiptCategory.PRODUCTS,
+                amount = 1250.0,
+                source = ReceiptSource.MANUAL,
+                items = listOf(
+                    ReceiptItem("Товар 1 (Демо)", 500.0, ReceiptCategory.PRODUCTS),
+                    ReceiptItem("Товар 2 (Демо)", 750.0, ReceiptCategory.PRODUCTS)
+                )
+            )
+            _scannerStep.value = ScannerStep.RESULT
+        }
+    }
+
+    fun confirmScan() {
+        val receipt = _scannedReceipt.value ?: return
+        addReceipt(receipt.amount, receipt.category, receipt.store, receipt.dateMillis)
+        closeScanner()
+    }
+
+    fun closeScanner() {
+        _isScanning.value = false
+        _scannerStep.value = ScannerStep.IDLE
+        _scannedReceipt.value = null
+    }
+    // -----------------------
 
     companion object {
         fun factory(storage: AppStorage): ViewModelProvider.Factory = viewModelFactory {
