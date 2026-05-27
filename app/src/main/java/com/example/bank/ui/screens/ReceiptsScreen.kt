@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -26,6 +27,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
 import com.example.bank.model.Receipt
 import com.example.bank.presentation.MainViewModel
 import com.example.bank.ui.components.GlassCard
@@ -38,6 +40,7 @@ import java.util.Locale
 fun ReceiptsScreen(viewModel: MainViewModel) {
     val receipts by viewModel.receipts.collectAsState()
     var pendingDelete by remember { mutableStateOf<Receipt?>(null) }
+    var selectedReceipt by remember { mutableStateOf<Receipt?>(null) }
     val dayFmt = remember { SimpleDateFormat("d MMMM", Locale("ru")) }
     val keyFmt = remember { SimpleDateFormat("yyyy-DDD", Locale("ru")) }
     val grouped = remember(receipts) {
@@ -89,7 +92,10 @@ fun ReceiptsScreen(viewModel: MainViewModel) {
                                 .fillMaxWidth()
                                 .padding(vertical = 8.dp)
                                 .pointerInput(r.id) {
-                                    detectTapGestures(onLongPress = { pendingDelete = r })
+                                    detectTapGestures(
+                                        onLongPress = { pendingDelete = r },
+                                        onTap = { selectedReceipt = r }
+                                    )
                                 },
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -127,6 +133,72 @@ fun ReceiptsScreen(viewModel: MainViewModel) {
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) { Text("Отмена") }
             }
+        )
+    }
+
+    selectedReceipt?.let { r ->
+        AlertDialog(
+            onDismissRequest = { selectedReceipt = null },
+            title = {
+                Column {
+                    Text(
+                        r.store ?: r.category.displayName,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Black
+                    )
+                    Text(
+                        SimpleDateFormat("d MMMM yyyy, HH:mm", Locale("ru")).format(Date(r.dateMillis)),
+                        fontSize = 12.sp,
+                        color = Color.Gray
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    if (r.items.isNotEmpty()) {
+                        r.items.forEach { item ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    item.name,
+                                    modifier = Modifier.weight(1f),
+                                    fontSize = 14.sp,
+                                    color = Color.Black
+                                )
+                                Text(
+                                    "${item.price.toInt()} ₽",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = Color.Black
+                                )
+                            }
+                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
+                        }
+                        Spacer(Modifier.height(8.dp))
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("ИТОГО", fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text(
+                            "${r.amount.toInt()} ₽",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFF2E7D32)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { selectedReceipt = null }) {
+                    Text("Закрыть", color = Color(0xFF1565C0))
+                }
+            },
+            containerColor = Color.White
         )
     }
 }

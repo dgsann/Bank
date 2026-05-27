@@ -69,7 +69,7 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
         _stats.value = computeStats()
     }
 
-    fun addReceipt(amount: Double, category: ReceiptCategory, store: String?, dateMillis: Long) {
+    fun addReceipt(amount: Double, category: ReceiptCategory, store: String?, dateMillis: Long, items: List<ReceiptItem> = emptyList()) {
         if (amount <= 0.0) {
             _error.value = "Сумма должна быть больше нуля"
             return
@@ -81,7 +81,8 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
             store = store?.trim()?.ifBlank { null },
             category = category,
             amount = amount,
-            source = ReceiptSource.MANUAL
+            source = ReceiptSource.MANUAL,
+            items = items
         )
         _receipts.value = listOf(receipt) + _receipts.value
         storage.saveReceipts(_receipts.value)
@@ -156,15 +157,14 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
         kotlin.concurrent.thread {
             Thread.sleep(3000)
             _scannedReceipt.value = Receipt(
-                id = 0,
+                id = System.currentTimeMillis(),
                 dateMillis = System.currentTimeMillis(),
-                store = "Магазин (Демо)",
+                store = "Пятёрочка",
                 category = ReceiptCategory.PRODUCTS,
-                amount = 1250.0,
+                amount = 79.99,
                 source = ReceiptSource.MANUAL,
                 items = listOf(
-                    ReceiptItem("Товар 1 (Демо)", 500.0, ReceiptCategory.PRODUCTS),
-                    ReceiptItem("Товар 2 (Демо)", 750.0, ReceiptCategory.PRODUCTS)
+                    ReceiptItem("ALP.GOLD Шок.ОР.мол.вк.ван/п85г", 79.99, ReceiptCategory.PRODUCTS)
                 )
             )
             _scannerStep.value = ScannerStep.RESULT
@@ -173,7 +173,7 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
 
     fun confirmScan() {
         val receipt = _scannedReceipt.value ?: return
-        addReceipt(receipt.amount, receipt.category, receipt.store, receipt.dateMillis)
+        addReceipt(receipt.amount, receipt.category, receipt.store, receipt.dateMillis, receipt.items)
         closeScanner()
     }
 
