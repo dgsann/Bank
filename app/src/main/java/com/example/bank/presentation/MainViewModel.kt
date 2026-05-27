@@ -44,6 +44,9 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
     private val _scannedReceipt = MutableStateFlow<Receipt?>(null)
     val scannedReceipt = _scannedReceipt.asStateFlow()
 
+    private val _isEmailImportEnabled = MutableStateFlow(false)
+    val isEmailImportEnabled = _isEmailImportEnabled.asStateFlow()
+
     enum class ScannerStep { IDLE, CAPTURING, ANALYZING, RESULT }
     // ---------------------
 
@@ -181,6 +184,37 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
         _isScanning.value = false
         _scannerStep.value = ScannerStep.IDLE
         _scannedReceipt.value = null
+    }
+
+    fun importFromEmail() {
+        _isEmailImportEnabled.value = !_isEmailImportEnabled.value
+        
+        if (_isEmailImportEnabled.value) {
+            val emailReceiptItems = listOf(
+                ReceiptItem("LAYS Чипсы карт.риф.вк.лоб.140г", 179.99, ReceiptCategory.PRODUCTS),
+                ReceiptItem("РЖ.КРАЙ Хлеб нар.300г", 94.99, ReceiptCategory.PRODUCTS),
+                ReceiptItem("КОЛОМ.Хлеб ДАРНИЦ.форм.нар.350г", 113.98, ReceiptCategory.PRODUCTS),
+                ReceiptItem("[М+] САРАФ.Кефир дет.3,2% 930г", 109.99, ReceiptCategory.PRODUCTS),
+                ReceiptItem("[М+] САРАФ.Кефир дет.3,2% 930г", 109.99, ReceiptCategory.PRODUCTS),
+                ReceiptItem("MEN.Жев.рез.P.FR.вкус.арб.15,5г", 36.99, ReceiptCategory.PRODUCTS),
+                ReceiptItem("Пакет ПЯТЕРОЧКА 65х40см", 9.99, ReceiptCategory.PRODUCTS)
+            )
+            
+            val calendar = Calendar.getInstance().apply {
+                set(2026, Calendar.MAY, 21, 17, 20)
+            }
+
+            addReceipt(
+                amount = 655.92,
+                category = ReceiptCategory.PRODUCTS,
+                store = "Пятёрочка (Email)",
+                dateMillis = calendar.timeInMillis,
+                items = emailReceiptItems
+            )
+            _toast.value = "Синхронизация включена: чек из почты импортирован"
+        } else {
+            _toast.value = "Синхронизация с почтой отключена"
+        }
     }
     // -----------------------
 
