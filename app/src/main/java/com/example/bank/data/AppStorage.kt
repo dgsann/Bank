@@ -9,7 +9,51 @@ import com.example.bank.model.ReceiptSource
 import org.json.JSONArray
 import org.json.JSONObject
 
+import com.example.bank.model.Achievement
+
 class AppStorage(context: Context) {
+    // ... existing ...
+
+    fun loadAchievements(): List<Achievement> {
+        val raw = prefs.getString("achievements", null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            val result = ArrayList<Achievement>()
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                result.add(Achievement(
+                    id = o.getString("id"),
+                    title = o.getString("title"),
+                    description = o.getString("description"),
+                    targetCategory = if (o.isNull("targetCategory")) null else ReceiptCategory.valueOf(o.getString("targetCategory")),
+                    durationDays = o.getInt("durationDays"),
+                    createdAt = o.getLong("createdAt"),
+                    isCompleted = o.getBoolean("isCompleted"),
+                    isFailed = o.getBoolean("isFailed")
+                ))
+            }
+            result
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveAchievements(list: List<Achievement>) {
+        val arr = JSONArray()
+        list.forEach { a ->
+            val o = JSONObject()
+            o.put("id", a.id)
+            o.put("title", a.title)
+            o.put("description", a.description)
+            o.put("targetCategory", a.targetCategory?.name ?: JSONObject.NULL)
+            o.put("durationDays", a.durationDays)
+            o.put("createdAt", a.createdAt)
+            o.put("isCompleted", a.isCompleted)
+            o.put("isFailed", a.isFailed)
+            arr.put(o)
+        }
+        prefs.edit().putString("achievements", arr.toString()).apply()
+    }
 
     private val prefs =
         context.getSharedPreferences("finance_companion_prefs", Context.MODE_PRIVATE)

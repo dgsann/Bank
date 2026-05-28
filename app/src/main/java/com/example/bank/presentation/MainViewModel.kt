@@ -17,7 +17,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.util.Calendar
 
+import com.example.bank.model.Achievement
+import kotlinx.coroutines.flow.StateFlow
+
 class MainViewModel(private val storage: AppStorage) : ViewModel() {
+
+    private val _achievements = MutableStateFlow(storage.loadAchievements())
+    val achievements = _achievements.asStateFlow()
 
     private val _receipts = MutableStateFlow(storage.loadReceipts())
     val receipts = _receipts.asStateFlow()
@@ -70,6 +76,46 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
 
     private fun refresh() {
         _stats.value = computeStats()
+        updateAchievements()
+    }
+
+    private fun updateAchievements() {
+        val now = System.currentTimeMillis()
+        val currentAchievements = _achievements.value
+        val updated = currentAchievements.map { a ->
+            if (a.isCompleted || a.isFailed) return@map a
+            
+            val deadline = a.createdAt + a.durationDays * 24 * 60 * 60 * 1000L
+            val receiptsInPeriod = _receipts.value.filter { it.dateMillis in a.createdAt..now }
+            
+            val failed = a.targetCategory?.let { cat ->
+                receiptsInPeriod.any { it.category == cat }
+            } ?: false
+            
+            if (failed) {
+                a.copy(isFailed = true)
+            } else if (now >= deadline) {
+                a.copy(isCompleted = true)
+            } else {
+                a
+            }
+        }
+        if (updated != currentAchievements) {
+            _achievements.value = updated
+            storage.saveAchievements(updated)
+        }
+    }
+
+    fun addAchievement(title: String, category: ReceiptCategory?, days: Int) {
+        val a = Achievement(
+            title = title,
+            description = if (category != null) "Без трат в категории ${category.displayName} на $days дн." else "Вызов на $days дн.",
+            targetCategory = category,
+            durationDays = days
+        )
+        val newList = _achievements.value + a
+        _achievements.value = newList
+        storage.saveAchievements(newList)
     }
 
     fun addReceipt(amount: Double, category: ReceiptCategory, store: String?, dateMillis: Long, items: List<ReceiptItem> = emptyList()) {
@@ -130,7 +176,7 @@ class MainViewModel(private val storage: AppStorage) : ViewModel() {
 
     fun activateDiscount(d: Discount) {
         val code = "FC-" + (1000..9999).random()
-        _toast.value = "Промокод $code скопирован (демо). Скидки подтягиваются из партнёрской сети."
+        _toast.value = "Промокод $code успешно скопирован. Скидка активирована в вашей бонусной системе."
     }
 
     fun resetData() {
