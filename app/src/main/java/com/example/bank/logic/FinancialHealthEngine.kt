@@ -53,19 +53,56 @@ object FinancialHealthEngine {
     fun lifestyleStats(receipts: List<Receipt>, year: Int, month: Int): AvatarStats {
         val cat = spentByCategory(receipts, year, month)
         fun g(c: ReceiptCategory) = cat[c] ?: 0.0
+        
         val health = (50.0
-            + 50.0 * norm(g(ReceiptCategory.HEALTH), 6000.0)
+            + 40.0 * norm(g(ReceiptCategory.HEALTH), 6000.0)
             + 10.0 * norm(g(ReceiptCategory.PRODUCTS), 8000.0)
-            - 15.0 * norm(g(ReceiptCategory.CAFE), 5000.0))
+            - 30.0 * norm(g(ReceiptCategory.BAD_HABITS), 3000.0)
+            - 20.0 * norm(g(ReceiptCategory.FAST_FOOD), 4000.0))
             .coerceIn(0.0, 100.0).roundToInt()
+            
         val growth = (50.0
             + 50.0 * norm(g(ReceiptCategory.EDUCATION), 5000.0))
             .coerceIn(0.0, 100.0).roundToInt()
+            
         val mood = (50.0
-            + 40.0 * norm(g(ReceiptCategory.ENTERTAINMENT), 5000.0)
-            + 15.0 * norm(g(ReceiptCategory.CAFE), 4000.0))
+            + 35.0 * norm(g(ReceiptCategory.ENTERTAINMENT), 5000.0)
+            + 15.0 * norm(g(ReceiptCategory.CAFE), 4000.0)
+            + 10.0 * norm(g(ReceiptCategory.FAST_FOOD), 2000.0)
+            - 25.0 * norm(g(ReceiptCategory.DEBTS), 5000.0))
             .coerceIn(0.0, 100.0).roundToInt()
-        return AvatarStats(health = health, growth = growth, mood = mood)
+
+        val comfort = (50.0
+            + 30.0 * norm(g(ReceiptCategory.HOUSING), 10000.0)
+            + 20.0 * norm(g(ReceiptCategory.SHOPPING), 7000.0))
+            .coerceIn(0.0, 100.0).roundToInt()
+
+        val energy = (50.0
+            + 25.0 * norm(g(ReceiptCategory.PRODUCTS), 10000.0)
+            + 25.0 * norm(g(ReceiptCategory.CAFE), 5000.0)
+            - 40.0 * norm(g(ReceiptCategory.BAD_HABITS), 4000.0))
+            .coerceIn(0.0, 100.0).roundToInt()
+
+        val social = (50.0
+            + 30.0 * norm(g(ReceiptCategory.CAFE), 6000.0)
+            + 20.0 * norm(g(ReceiptCategory.ENTERTAINMENT), 4000.0))
+            .coerceIn(0.0, 100.0).roundToInt()
+
+        return AvatarStats(
+            health = health, 
+            growth = growth, 
+            mood = mood,
+            comfort = comfort,
+            energy = energy,
+            social = social
+        )
+    }
+
+    fun housingInfo(saved: Double): Pair<String, String> = when {
+        saved >= 100000 -> "🏰 Замок" to "💎 Роскошь и статус"
+        saved >= 50000 -> "🏡 Коттедж" to "🌳 Уютный сад и забор"
+        saved >= 20000 -> "🏠 Дом" to "🧱 Надежные стены"
+        else -> "⛺ Палатка" to "🔥 Костер и свобода"
     }
 
     fun computeStats(

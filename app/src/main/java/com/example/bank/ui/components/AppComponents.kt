@@ -33,6 +33,45 @@ import com.example.bank.ui.theme.SurfaceCard
 import com.example.bank.ui.theme.TextPrimary
 import com.example.bank.ui.theme.TextSecondary
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.text.font.FontWeight
+
+@Composable
+fun HomeEnvironment(saved: Double, mood: Int, modifier: Modifier = Modifier) {
+    val (housing, decor) = FinancialHealthEngine.housingInfo(saved)
+    val bgColor = when {
+        mood >= 80 -> Brush.verticalGradient(listOf(Color(0xFFFFF9C4), Color(0xFFFFD54F)))
+        mood >= 50 -> Brush.verticalGradient(listOf(Color(0xFFE3F2FD), Color(0xFF90CAF9)))
+        else -> Brush.verticalGradient(listOf(Color(0xFFECEFF1), Color(0xFFB0BEC5)))
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(180.dp)
+            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+            .background(bgColor),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(housing.split(" ")[0], fontSize = 80.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(decor.split(" ")[0], fontSize = 24.sp)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    housing.split(" ").drop(1).joinToString(" "), 
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+            Text(decor.split(" ").drop(1).joinToString(" "), fontSize = 12.sp, color = Color.DarkGray)
+        }
+    }
+}
+
 @Composable
 fun GlassCard(
     modifier: Modifier = Modifier,

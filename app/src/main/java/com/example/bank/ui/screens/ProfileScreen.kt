@@ -67,7 +67,7 @@ fun ProfileScreen(viewModel: MainViewModel) {
         OutlinedTextField(
             value = goal,
             onValueChange = { goal = it.filter { c -> c.isDigit() } },
-            label = { Text("Цель накоплений в месяц, ₽") },
+            label = { Text("Цель накоплений в руб") },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
             modifier = Modifier.fillMaxWidth()
